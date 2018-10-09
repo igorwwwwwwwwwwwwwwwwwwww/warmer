@@ -12,6 +12,8 @@ authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
 )
 authorizer.fetch_access_token!
 
+compute.authorization = authorizer
+
 # post '/request-instance' do
   # payload = JSON.parse(request.body.read)
   # payload['image']
@@ -23,7 +25,7 @@ authorizer.fetch_access_token!
     order_by: 'creationTimestamp asc'
   )
 
-  # if instances.items == 0
+  # if instances.managedInstances.size == 0
   #   content_type :json
   #   status 409 # Conflict
   #   return {
@@ -31,7 +33,7 @@ authorizer.fetch_access_token!
   #   }.to_json
   # end
 
-  instance = instances.items.first
+  #instance = instances.managedInstances.first
 
   # TODO: abandon instance from group
 
