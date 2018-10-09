@@ -12,7 +12,7 @@ authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
 )
 authorizer.fetch_access_token!
 
-post '/request-instance' do
+# post '/request-instance' do
   # payload = JSON.parse(request.body.read)
   # payload['image']
 
@@ -23,21 +23,21 @@ post '/request-instance' do
     order_by: 'creationTimestamp asc'
   )
 
-  if instances.items == 0
-    content_type :json
-    status 409 # Conflict
-    return {
-      error: 'no instance available in pool'
-    }.to_json
-  end
+  # if instances.items == 0
+  #   content_type :json
+  #   status 409 # Conflict
+  #   return {
+  #     error: 'no instance available in pool'
+  #   }.to_json
+  # end
 
   instance = instances.items.first
 
   # TODO: abandon instance from group
 
-  content_type :json
-  {
-    name: instance.name,
-    ip:   instance.network_interfaces.first.network_ip
-  }.to_json
-end
+  # content_type :json
+  # {
+  #   name: instance.name,
+  #   ip:   instance.network_interfaces.first.network_ip
+  # }.to_json
+# end
