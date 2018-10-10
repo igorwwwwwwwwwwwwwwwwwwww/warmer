@@ -16,7 +16,7 @@ compute.authorization = authorizer
 
 post '/request-instance' do
   payload = JSON.parse(request.body.read)
-  group_name = payload['image_name'].split('/')[-1] if payload['image_name']
+  group_name = "warmer-org-d-#{payload['image_name'].split('/')[-1]}" if payload['image_name']
   group_name ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
 
   instances = compute.list_region_instance_group_instances(
