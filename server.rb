@@ -14,54 +14,81 @@ authorizer.fetch_access_token!
 
 compute.authorization = authorizer
 
-# post '/request-instance' do
-  # payload = JSON.parse(request.body.read)
-  # payload['image']
+post '/request-instance' do
+  payload = JSON.parse(request.body.read)
+  payload ||= {}
+  payload['group'] ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
 
   instances = compute.list_region_instance_group_instances(
     ENV['GOOGLE_CLOUD_PROJECT'],
     ENV['GOOGLE_CLOUD_REGION'],
-    ENV['GOOGLE_CLOUD_INSTANCE_GROUP'],
+    payload['group'],
     order_by: 'creationTimestamp asc'
   )
 
-  #if instances.items.size == 0
-  #   content_type :json
-  #   status 409 # Conflict
-  #   return {
-  #     error: 'no instance available in pool'
-  #   }.to_json
-  #end
+  if instances.items == nil
+    puts "no instances available in group #{payload['group']}"
+    content_type :json
+    status 409 # Conflict
+    return {
+      error: 'no instance available in pool'
+    }.to_json
+  end
 
   instance_url = instances.items.first.instance
   split_url = instance_url.split('/')
-  # THIS IS HACKY I KNOW, it is too early in the morning for regex
-  # TODO some sort of sensible error handling here
   project, zone, instance_id = split_url[6], split_url[8], split_url[10]
 
-  instance = compute.get_instance(project, zone, instance_id)
+  begin
+    instance = compute.get_instance(project, zone, instance_id)
+  rescue Google::Apis::ClientError
+    # This should probably never happen, unless our url parsing went SUPER wonky
+    content_type :json
+    status 418
+    return {
+      error: 'cannot get specified instance from pool'
+    }.to_json
+  end
 
-  # TODO: abandon instance from group
+  # Don't block returning the instance on having to wait to sort out the sizes, that's just silly
+  Thread.new do
+    # TODO - get this from config somewhere? here might be race condition dragons
+    manager = compute.get_region_instance_group_manager(
+      ENV['GOOGLE_CLOUD_PROJECT'],
+      ENV['GOOGLE_CLOUD_REGION'],
+      payload['group']
+    )
+    group_size = manager.target_size
 
-  abandon_request = Google::Apis::ComputeV1::RegionInstanceGroupManagersAbandonInstancesRequest.new
-  abandon_request.instances = [instance_url]
+    abandon_request = Google::Apis::ComputeV1::RegionInstanceGroupManagersAbandonInstancesRequest.new
+    abandon_request.instances = [instance_url]
 
-  #compute.abandon_region_instance_group_manager_instance(
-  #  ENV['GOOGLE_CLOUD_PROJECT'],
-  #  ENV['GOOGLE_CLOUD_REGION'],
-  #  ENV['GOOGLE_CLOUD_INSTANCE_GROUP'],
-  #  abandon_request
-  #)
-  #
-  # TODO - maybe put a request ID in here so we can retry removing the instance from the pool if we have to
-  # because multiple workers getting the same IP seems Bad
+    begin
+      puts "abandoning instance #{instance_id} from group #{payload['group']}"
+      compute.abandon_region_instance_group_manager_instances(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        ENV['GOOGLE_CLOUD_REGION'],
+        payload['group'],
+        abandon_request
+      )
+    rescue Google::Apis::ServerError
+      puts "unable to abandon instance #{instance_id} from group #{payload['group']}"
+    end
 
-  # content_type :json
-  # {
-  #   name: instance.name,
-  #   ip:   instance.network_interfaces.first.network_ip
-  # }.to_json
-# end
+    sleep 60
+    puts "restoring group #{payload['group']} to size #{group_size}"
+    compute.resize_region_instance_group_manager(
+      ENV['GOOGLE_CLOUD_PROJECT'],
+      ENV['GOOGLE_CLOUD_REGION'],
+      payload['group'],
+      group_size
+    )
+  end
 
-# TODO remove this when we're running this for reals
-exit
+  puts "returning instance #{instance_id}, formerly in group #{payload['group']}"
+  content_type :json
+  {
+    name: instance.name,
+    ip:   instance.network_interfaces.first.network_ip
+  }.to_json
+end
