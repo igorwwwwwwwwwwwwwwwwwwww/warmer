@@ -8,7 +8,7 @@ compute = Google::Apis::ComputeV1::ComputeService.new
 
 authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
   json_key_io: StringIO.new(ENV['GOOGLE_CLOUD_KEYFILE_JSON']),
-  scope: 'https://www.googleapis.com/auth/compute',
+  scope: 'https://www.googleapis.com/auth/compute'
 )
 authorizer.fetch_access_token!
 
@@ -16,18 +16,18 @@ compute.authorization = authorizer
 
 post '/request-instance' do
   payload = JSON.parse(request.body.read)
-  payload ||= {}
-  payload['group'] ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
+  group_name = payload['image_name'].split('/')[-1] if payload['image_name']
+  group_name ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
 
   instances = compute.list_region_instance_group_instances(
     ENV['GOOGLE_CLOUD_PROJECT'],
     ENV['GOOGLE_CLOUD_REGION'],
-    payload['group'],
+    group_name,
     order_by: 'creationTimestamp asc'
   )
 
-  if instances.items == nil
-    puts "no instances available in group #{payload['group']}"
+  if instances.items.nil?
+    puts "no instances available in group #{group_name}"
     content_type :json
     status 409 # Conflict
     return {
@@ -52,11 +52,11 @@ post '/request-instance' do
 
   # Don't block returning the instance on having to wait to sort out the sizes, that's just silly
   Thread.new do
-    # TODO - get this from config somewhere? here might be race condition dragons
+    # TODO: get this from config somewhere? here might be race condition dragons
     manager = compute.get_region_instance_group_manager(
       ENV['GOOGLE_CLOUD_PROJECT'],
       ENV['GOOGLE_CLOUD_REGION'],
-      payload['group']
+      group_name
     )
     group_size = manager.target_size
 
@@ -64,28 +64,28 @@ post '/request-instance' do
     abandon_request.instances = [instance_url]
 
     begin
-      puts "abandoning instance #{instance_id} from group #{payload['group']}"
+      puts "abandoning instance #{instance_id} from group #{group_name}"
       compute.abandon_region_instance_group_manager_instances(
         ENV['GOOGLE_CLOUD_PROJECT'],
         ENV['GOOGLE_CLOUD_REGION'],
-        payload['group'],
+        group_name,
         abandon_request
       )
     rescue Google::Apis::ServerError
-      puts "unable to abandon instance #{instance_id} from group #{payload['group']}"
+      puts "unable to abandon instance #{instance_id} from group #{group_name}"
     end
 
     sleep 60
-    puts "restoring group #{payload['group']} to size #{group_size}"
+    puts "restoring group #{group_name} to size #{group_size}"
     compute.resize_region_instance_group_manager(
       ENV['GOOGLE_CLOUD_PROJECT'],
       ENV['GOOGLE_CLOUD_REGION'],
-      payload['group'],
+      group_name,
       group_size
     )
   end
 
-  puts "returning instance #{instance_id}, formerly in group #{payload['group']}"
+  puts "returning instance #{instance_id}, formerly in group #{group_name}"
   content_type :json
   {
     name: instance.name,
