@@ -149,6 +149,12 @@ end
 $warmer = Warmer.new
 $warmer.authorize!
 
+if ENV['AUTH_TOKEN']
+  use Rack::Auth::Basic, "Protected Area" do |username, password|
+    Rack::Utils.secure_compare(password, ENV['AUTH_TOKEN'])
+  end
+end
+
 post '/request-instance' do
   payload = JSON.parse(request.body.read)
   group_name = "warmer-org-d-#{payload['image_name'].split('/')[-1]}" if payload['image_name']
