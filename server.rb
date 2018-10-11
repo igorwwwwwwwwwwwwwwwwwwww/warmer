@@ -8,24 +8,153 @@ require 'google/apis/compute_v1'
 # https://www.rubydoc.info/github/google/google-api-ruby-client/Google/Apis/ComputeV1/ComputeService
 # https://github.com/googleapis/google-auth-library-ruby
 
-compute = Google::Apis::ComputeV1::ComputeService.new
-authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
-  json_key_io: StringIO.new(ENV['GOOGLE_CLOUD_KEYFILE_JSON']),
-  scope: 'https://www.googleapis.com/auth/compute'
-)
-authorizer.fetch_access_token!
-compute.authorization = authorizer
+class Warmer
+  def authorize!
+    authorizer.fetch_access_token!
+  end
 
-config = YAML.load(ENV['CONFIG'])
+  def request_instance(group_name)
+    redis.lpop(group_name)
+  end
 
-redis = Redis.new
+  def check_pools!
+    config['pools'].each do |pool|
+      if redis.llen(pool['group_name']) < pool['target_size']
+        # TODO: eventually have this support more than just GCE
+        increase_size(pool)
+        sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
+      end
+    end
+  end
+
+  private
+
+  def increase_size(pool)
+    size_difference = pool['target_size'] - redis.llen(pool['group_name'])
+    size_difference.times do
+      zone = random_zone
+
+      machine_type = compute.get_machine_type(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        File.basename(zone),
+        pool['machine_type']
+      )
+
+      subnetwork = compute.get_subnetwork(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        ENV['GOOGLE_CLOUD_REGION'],
+        'jobs-org'
+      )
+
+      new_instance = Google::Apis::ComputeV1::Instance.new(
+        name: "travis-job-#{SecureRandom.uuid}",
+        machine_type: machine_type.self_link,
+        tags: Google::Apis::ComputeV1::Tags.new({
+          items: ['testing', 'no-ip', 'org', 'warmer'],
+        }),
+        scheduling: Google::Apis::ComputeV1::Scheduling.new(
+          automatic_restart: true,
+          on_host_maintenance: 'MIGRATE'
+        ),
+        disks: [Google::Apis::ComputeV1::AttachedDisk.new(
+          auto_delete: true,
+          boot: true,
+          initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
+            source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
+          )
+        )],
+        network_interfaces: [
+          Google::Apis::ComputeV1::NetworkInterface.new(
+            subnetwork: subnetwork
+          )
+        ],
+        metadata: Google::Apis::ComputeV1::Metadata.new(
+          items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
+        )
+      )
+
+      instance_operation = compute.insert_instance(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        File.basename(zone),
+        new_instance
+      )
+
+      # TODO: should this maybe also be threaded?
+      while instance_operation.status != 'DONE'
+        sleep 10
+        instance_operation = compute.get_zone_operation(
+          ENV['GOOGLE_CLOUD_PROJECT'],
+          File.basename(zone),
+          instance_operation.name
+        )
+        # TODO: some sort of timeout here
+      end
+
+      begin
+        instance = compute.get_instance(
+          ENV['GOOGLE_CLOUD_PROJECT'],
+          File.basename(zone),
+          new_instance.name
+        )
+      rescue Google::Apis::ClientError => e
+        # This should probably never happen, unless our url parsing went SUPER wonky
+        # TODO: different error handling here?
+        puts "error creating new instance in group #{pool['group_name']}"
+        puts e
+        return
+      end
+
+      new_instance = {
+        name: instance.name,
+        ip: instance.network_interfaces.first.network_ip
+      }
+
+      # TODO: handle errors between insertion and redis rpush
+      #       so that we don't leak VMs
+
+      redis.rpush(pool['group_name'], JSON.dump(new_instance))
+    end
+  end
+
+  def random_zone
+    region = compute.get_region(
+      ENV['GOOGLE_CLOUD_PROJECT'],
+      ENV['GOOGLE_CLOUD_REGION']
+    )
+    region.zones.sample
+  end
+
+  def compute
+    @compute ||= Google::Apis::ComputeV1::ComputeService.new.tap do |compute|
+      compute.authorization = authorizer
+    end
+  end
+
+  def authorizer
+    @authorizer ||= Google::Auth::ServiceAccountCredentials.make_creds(
+      json_key_io: StringIO.new(ENV['GOOGLE_CLOUD_KEYFILE_JSON']),
+      scope: 'https://www.googleapis.com/auth/compute'
+    )
+  end
+
+  def config
+    @config ||= YAML.load(ENV['CONFIG'])
+  end
+
+  def redis
+    @redis ||= Redis.new
+  end
+end
+
+$warmer = Warmer.new
+$warmer.authorize!
 
 post '/request-instance' do
   payload = JSON.parse(request.body.read)
   group_name = "warmer-org-d-#{payload['image_name'].split('/')[-1]}" if payload['image_name']
   group_name ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
 
-  instance = redis.lpop(group_name)
+  instance = $warmer.request_instance(group_name)
 
   if instance.nil?
     puts "no instances available in group #{group_name}"
@@ -47,82 +176,6 @@ end
 
 Thread.new do
   loop do
-    config['pools'].each do |pool|
-      if redis.llen(pool['group_name']) < pool['target_size']
-        # TODO: eventually have this support more than just GCE
-        increase_size(pool)
-        sleep ENV['POOL_CHECK_INTERVAL'] # Some amount of sleep to avoid race conditions
-      end
-    end
+    $warmer.check_pools!
   end
-end
-
-def increase_size(pool)
-  size_difference = pool['target_size'] - redis.llen(pool['group_name'])
-  size_difference.each do
-    new_instance = Google::Apis::ComputeV1::Instance.new(
-      name: "travis-job-#{SecureRandom.uuid}",
-      machine_type: pool['machine_type'],
-      tags: Google::Apis::ComputeV1::Tags.new({}),
-      scheduling: Google::Apis::ComputeV1::Scheduling.new(
-        automatic_restart: true,
-        on_host_maintenance: 'MIGRATE'
-      ),
-      disks: [Google::Apis::ComputeV1::AttachedDisk.new(
-        auto_delete: true,
-        boot: true,
-        initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
-          source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
-        )
-      )],
-      network_interfaces: [
-        Google::Apis::ComputeV1::NetworkInterface.new(
-          subnetwork: 'jobs-org'
-        )
-      ],
-      metadata: Google::Apis::ComputeV1::Metadata.new(
-        items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
-      )
-    )
-
-    instance_operation = compute.insert_instance(
-      ENV['GOOGLE_CLOUD_PROJECT'],
-      random_zone,
-      new_instance
-    )
-
-    # TODO: should this maybe also be threaded?
-    while instance_operation.status != 'DONE'
-      sleep 10
-      # TODO: some sort of timeout here
-    end
-
-    instance_url = instance_operation.self_link
-    split_url = instance_url.split('/')
-    project, zone, instance_id = split_url[6], split_url[8], split_url[10]
-
-    begin
-      instance = compute.get_instance(project, zone, instance_id)
-    rescue Google::Apis::ClientError
-      # This should probably never happen, unless our url parsing went SUPER wonky
-      # TODO: different error handling here?
-      puts "error creating new instance in group #{pool['group_name']}"
-      return
-    end
-
-    new_instance = {
-      name: instance.name,
-      ip: instance.network_interfaces.first.network_ip
-    }
-
-    redis.rpush(pool['group_name'], JSON.dump(new_instance))
-  end
-end
-
-def random_zone
-  region = compute.get_region(
-    ENV['GOOGLE_CLOUD_PROJECT'],
-    ENV['GOOGLE_CLOUD_REGION']
-  )
-  region.zones.sample
 end
