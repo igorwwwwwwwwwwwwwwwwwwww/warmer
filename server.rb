@@ -51,7 +51,7 @@ Thread.new do
       if redis.llen(pool['group_name']) < pool['target_size']
         # TODO: eventually have this support more than just GCE
         increase_size(pool)
-        sleep config['pool_check_interval'] # Some amount of sleep to avoid race conditions
+        sleep ENV['POOL_CHECK_INTERVAL'] # Some amount of sleep to avoid race conditions
       end
     end
   end
