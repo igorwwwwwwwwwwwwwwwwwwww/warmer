@@ -50,21 +50,19 @@ Thread.new do
     config['pools'].each do |pool|
       if redis.llen(pool['group_name']) < pool['target_size']
         # TODO: eventually have this support more than just GCE
-        increase_size(group_name, target_size)
+        increase_size(pool)
         sleep config['pool_check_interval'] # Some amount of sleep to avoid race conditions
       end
     end
   end
 end
 
-def increase_size(group_name, target_size)
-  size_difference = target_size - redis.llen(group_name)
+def increase_size(pool)
+  size_difference = pool['target_size'] - redis.llen(pool['group_name'])
   size_difference.each do
-    image_name = group_name.split('-')[3..-1].join('-')
-
     new_instance = Google::Apis::ComputeV1::Instance.new(
       name: "travis-job-#{SecureRandom.uuid}",
-      machine_type: 'n1-standard-1',
+      machine_type: pool['machine_type'],
       tags: Google::Apis::ComputeV1::Tags.new({}),
       scheduling: Google::Apis::ComputeV1::Scheduling.new(
         automatic_restart: true,
@@ -74,7 +72,7 @@ def increase_size(group_name, target_size)
         auto_delete: true,
         boot: true,
         initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
-          source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{image_name}"
+          source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
         )
       )],
       network_interfaces: [
@@ -108,7 +106,7 @@ def increase_size(group_name, target_size)
     rescue Google::Apis::ClientError
       # This should probably never happen, unless our url parsing went SUPER wonky
       # TODO: different error handling here?
-      puts "error creating new instance in group #{group_name}"
+      puts "error creating new instance in group #{pool['group_name']}"
       return
     end
 
@@ -117,7 +115,7 @@ def increase_size(group_name, target_size)
       ip: instance.network_interfaces.first.network_ip
     }
 
-    redis.rpush(group_name, JSON.dump(new_instance))
+    redis.rpush(pool['group_name'], JSON.dump(new_instance))
   end
 end
 
