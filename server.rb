@@ -15,7 +15,7 @@ authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
 authorizer.fetch_access_token!
 compute.authorization = authorizer
 
-config = YAML.load_file('config.yml')
+config = YAML.load(ENV['CONFIG'])
 
 redis = Redis.new
 
