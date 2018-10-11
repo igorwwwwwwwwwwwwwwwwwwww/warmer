@@ -1,6 +1,7 @@
 require 'sinatra'
 require 'redis'
-require 'YAML'
+require 'yaml'
+require 'json'
 require 'securerandom'
 require 'google/apis/compute_v1'
 
@@ -50,7 +51,7 @@ Thread.new do
       if redis.llen(pool['group_name']) < pool['target_size']
         # TODO: eventually have this support more than just GCE
         increase_size(group_name, target_size)
-        sleep 30 # Some amount of sleep to avoid race conditions
+        sleep config['pool_check_interval'] # Some amount of sleep to avoid race conditions
       end
     end
   end
@@ -116,7 +117,7 @@ def increase_size(group_name, target_size)
       ip: instance.network_interfaces.first.network_ip
     }
 
-    redis.rpush(group_name, new_instance)
+    redis.rpush(group_name, JSON.dump(new_instance))
   end
 end
 
@@ -125,5 +126,5 @@ def random_zone
     ENV['GOOGLE_CLOUD_PROJECT'],
     ENV['GOOGLE_CLOUD_REGION']
   )
-  region.zones[rand(region.zones.size)]
+  region.zones.sample
 end
