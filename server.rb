@@ -106,7 +106,7 @@ class Warmer
         metadata: Google::Apis::ComputeV1::Metadata.new(
           items: [
             Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true),
-            Google::Apis::ComputeV1::Metadata::Item.new(key: 'startup-script', value: true),
+            Google::Apis::ComputeV1::Metadata::Item.new(key: 'startup-script', value: startup_script),
           ]
         )
       )
