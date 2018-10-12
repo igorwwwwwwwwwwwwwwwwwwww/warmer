@@ -23,9 +23,9 @@ class Warmer
         if redis.llen(pool['group_name']) < pool['target_size']
           # TODO: eventually have this support more than just GCE
           increase_size(pool)
-          sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
         end
       end
+      sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
     end
   end
 
@@ -34,93 +34,91 @@ class Warmer
   def increase_size(pool)
     size_difference = pool['target_size'] - redis.llen(pool['group_name'])
     size_difference.times do
-      Thread.new do
-        zone = random_zone
+      zone = random_zone
 
-        machine_type = compute.get_machine_type(
-          ENV['GOOGLE_CLOUD_PROJECT'],
-          File.basename(zone),
-          pool['machine_type']
-        )
+      machine_type = compute.get_machine_type(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        File.basename(zone),
+        pool['machine_type']
+      )
 
-        subnetwork = compute.get_subnetwork(
-          ENV['GOOGLE_CLOUD_PROJECT'],
-          ENV['GOOGLE_CLOUD_REGION'],
-          'jobs-org'
-        )
+      subnetwork = compute.get_subnetwork(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        ENV['GOOGLE_CLOUD_REGION'],
+        'jobs-org'
+      )
 
-        new_instance = Google::Apis::ComputeV1::Instance.new(
-          name: "travis-job-#{SecureRandom.uuid}",
-          machine_type: machine_type.self_link,
-          tags: Google::Apis::ComputeV1::Tags.new({
-            items: ['testing', 'no-ip', 'org', 'warmer'],
-          }),
-          scheduling: Google::Apis::ComputeV1::Scheduling.new(
-            automatic_restart: true,
-            on_host_maintenance: 'MIGRATE'
-          ),
-          disks: [Google::Apis::ComputeV1::AttachedDisk.new(
-            auto_delete: true,
-            boot: true,
-            initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
-              source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
-            )
-          )],
-          network_interfaces: [
-            Google::Apis::ComputeV1::NetworkInterface.new(
-              subnetwork: subnetwork
-            )
-          ],
-          metadata: Google::Apis::ComputeV1::Metadata.new(
-            items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
+      new_instance = Google::Apis::ComputeV1::Instance.new(
+        name: "travis-job-#{SecureRandom.uuid}",
+        machine_type: machine_type.self_link,
+        tags: Google::Apis::ComputeV1::Tags.new({
+          items: ['testing', 'no-ip', 'org', 'warmer'],
+        }),
+        scheduling: Google::Apis::ComputeV1::Scheduling.new(
+          automatic_restart: true,
+          on_host_maintenance: 'MIGRATE'
+        ),
+        disks: [Google::Apis::ComputeV1::AttachedDisk.new(
+          auto_delete: true,
+          boot: true,
+          initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
+            source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
           )
+        )],
+        network_interfaces: [
+          Google::Apis::ComputeV1::NetworkInterface.new(
+            subnetwork: subnetwork
+          )
+        ],
+        metadata: Google::Apis::ComputeV1::Metadata.new(
+          items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
         )
+      )
 
-        instance_operation = compute.insert_instance(
-          ENV['GOOGLE_CLOUD_PROJECT'],
-          File.basename(zone),
-          new_instance
-        )
+      instance_operation = compute.insert_instance(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        File.basename(zone),
+        new_instance
+      )
 
-        begin
-          slept = 0
-          while instance_operation.status != 'DONE'
-            sleep 10
-            slept += 10
-            instance_operation = compute.get_zone_operation(
-              ENV['GOOGLE_CLOUD_PROJECT'],
-              File.basename(zone),
-              instance_operation.name
-            )
-            if slept > ENV['VM_CREATION_TIMEOUT']
-              raise Exception.new("Timeout waiting for new instance operation to complete")
-            end
+      begin
+        slept = 0
+        while instance_operation.status != 'DONE'
+          sleep 10
+          slept += 10
+          instance_operation = compute.get_zone_operation(
+            ENV['GOOGLE_CLOUD_PROJECT'],
+            File.basename(zone),
+            instance_operation.name
+          )
+          if slept > ENV['VM_CREATION_TIMEOUT']
+            raise Exception.new("Timeout waiting for new instance operation to complete")
           end
-
-          begin
-            instance = compute.get_instance(
-              ENV['GOOGLE_CLOUD_PROJECT'],
-              File.basename(zone),
-              new_instance.name
-            )
-          rescue Google::Apis::ClientError => e
-            # This should probably never happen, unless our url parsing went SUPER wonky
-            puts "error creating new instance in group #{pool['group_name']}"
-            puts e
-            raise Exception.new("Google::Apis::ClientError creating instance: #{e}")
-          end
-
-          new_instance_json = {
-            name: instance.name,
-            ip: instance.network_interfaces.first.network_ip
-          }
-        rescue Exception => e
-          puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
-          redis.rpush('orphaned', new_instance.name)
         end
 
-        redis.rpush(pool['group_name'], JSON.dump(new_instance_json))
-      end # thread
+        begin
+          instance = compute.get_instance(
+            ENV['GOOGLE_CLOUD_PROJECT'],
+            File.basename(zone),
+            new_instance.name
+          )
+        rescue Google::Apis::ClientError => e
+          # This should probably never happen, unless our url parsing went SUPER wonky
+          puts "error creating new instance in group #{pool['group_name']}"
+          puts e
+          raise Exception.new("Google::Apis::ClientError creating instance: #{e}")
+        end
+
+        new_instance_json = {
+          name: instance.name,
+          ip: instance.network_interfaces.first.network_ip
+        }
+      rescue Exception => e
+        puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
+        redis.rpush('orphaned', new_instance.name)
+      end
+
+      redis.rpush(pool['group_name'], JSON.dump(new_instance_json))
     end # times
   end # method
 
