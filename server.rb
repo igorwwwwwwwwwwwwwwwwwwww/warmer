@@ -197,6 +197,7 @@ post '/request-instance' do
 end
 
 Thread.new do
+  puts "HELLO I'M A THREAD"
   loop do
     $warmer.check_pools!
   end
