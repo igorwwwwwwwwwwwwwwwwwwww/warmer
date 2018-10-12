@@ -62,8 +62,8 @@ class Warmer
       )
 
       interface = Google::Apis::ComputeV1::NetworkInterface.new(
-        network: network,
-        subnetwork: subnetwork,
+        network: network.self_link,
+        subnetwork: subnetwork.self_link,
         access_configs: []
       )
 
