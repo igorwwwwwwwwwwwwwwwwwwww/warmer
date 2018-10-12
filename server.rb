@@ -125,6 +125,7 @@ class Warmer
 
       rescue Exception => e
         puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
+        puts e
         redis.rpush('orphaned', new_instance.name)
       end
 
@@ -163,6 +164,8 @@ end
 
 $warmer = Warmer.new
 $warmer.authorize!
+
+$stdout.sync = true
 
 if ENV['AUTH_TOKEN']
   use Rack::Auth::Basic, "Protected Area" do |username, password|
