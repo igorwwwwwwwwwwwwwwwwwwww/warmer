@@ -50,6 +50,11 @@ class Warmer
         pool['machine_type']
       )
 
+      network = compute.get_network(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        'main'
+      )
+
       subnetwork = compute.get_subnetwork(
         ENV['GOOGLE_CLOUD_PROJECT'],
         ENV['GOOGLE_CLOUD_REGION'],
@@ -76,6 +81,7 @@ class Warmer
         )],
         network_interfaces: [
           Google::Apis::ComputeV1::NetworkInterface.new(
+            network: network,
             subnetwork: subnetwork
           )
         ],
