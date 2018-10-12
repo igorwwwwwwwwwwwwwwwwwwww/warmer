@@ -33,6 +33,7 @@ class Warmer
 
   def increase_size(pool)
     size_difference = pool['target_size'] - redis.llen(pool['group_name'])
+    puts "increasing size of pool #{pool['group_name']} by #{size_difference}"
     size_difference.times do
       zone = random_zone
 
@@ -75,12 +76,14 @@ class Warmer
         )
       )
 
+      puts "inserting instance #{new_instance.name} into zone #{zone}"
       instance_operation = compute.insert_instance(
         ENV['GOOGLE_CLOUD_PROJECT'],
         File.basename(zone),
         new_instance
       )
 
+      puts "waiting for new instance #{new_instance.name} operation to complete"
       begin
         slept = 0
         while instance_operation.status != 'DONE'
@@ -113,12 +116,14 @@ class Warmer
           name: instance.name,
           ip: instance.network_interfaces.first.network_ip
         }
+        puts "new instance #{new_instance_json['name']}is live with ip #{new_instance_json['ip']}"
+        redis.rpush(pool['group_name'], JSON.dump(new_instance_json))
+
       rescue Exception => e
         puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
         redis.rpush('orphaned', new_instance.name)
       end
 
-      redis.rpush(pool['group_name'], JSON.dump(new_instance_json))
     end # times
   end # method
 
