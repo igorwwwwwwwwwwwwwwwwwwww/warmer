@@ -18,12 +18,16 @@ class Warmer
   end
 
   def check_pools!
+    # TODO: exception handling
     config['pools'].each do |pool|
-      unless redis.llen("orphaned") > ENV['ORPHAN_THRESHOLD'].to_i
+      puts "checking size of pool #{pool}"
+      if redis.llen("orphaned") <= ENV['ORPHAN_THRESHOLD'].to_i
         if redis.llen(pool['group_name']) < pool['target_size']
           # TODO: eventually have this support more than just GCE
           increase_size(pool)
         end
+      else
+        puts "too many orphaned VMs, not creating any more in case something is bork"
       end
       sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
     end
@@ -182,6 +186,7 @@ post '/request-instance' do
     }.to_json
   end
 
+  puts instance
   instance_data = JSON.parse(instance)
   puts "returning instance #{instance_data['name']}, formerly in group #{group_name}"
   content_type :json
