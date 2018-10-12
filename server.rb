@@ -8,6 +8,9 @@ require 'google/apis/compute_v1'
 # https://www.rubydoc.info/github/google/google-api-ruby-client/Google/Apis/ComputeV1/ComputeService
 # https://github.com/googleapis/google-auth-library-ruby
 
+$stdout.sync = true
+$stderr.sync = true
+
 class Warmer
   def authorize!
     authorizer.fetch_access_token!
@@ -59,6 +62,7 @@ class Warmer
         tags: Google::Apis::ComputeV1::Tags.new({
           items: ['testing', 'no-ip', 'org', 'warmer'],
         }),
+        labels: {"warmth": "warmed"},
         scheduling: Google::Apis::ComputeV1::Scheduling.new(
           automatic_restart: true,
           on_host_maintenance: 'MIGRATE'
@@ -98,7 +102,7 @@ class Warmer
             File.basename(zone),
             instance_operation.name
           )
-          if slept > ENV['VM_CREATION_TIMEOUT']
+          if slept > ENV['VM_CREATION_TIMEOUT'].to_i
             raise Exception.new("Timeout waiting for new instance operation to complete")
           end
         end
@@ -109,6 +113,13 @@ class Warmer
             File.basename(zone),
             new_instance.name
           )
+
+          new_instance_info = {
+            name: instance.name,
+            ip: instance.network_interfaces.first.network_ip
+          }
+          puts "new instance #{new_instance_info[:name]}is live with ip #{new_instance_info[:ip]}"
+          redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
         rescue Google::Apis::ClientError => e
           # This should probably never happen, unless our url parsing went SUPER wonky
           puts "error creating new instance in group #{pool['group_name']}"
@@ -116,16 +127,9 @@ class Warmer
           raise Exception.new("Google::Apis::ClientError creating instance: #{e}")
         end
 
-        new_instance_json = {
-          name: instance.name,
-          ip: instance.network_interfaces.first.network_ip
-        }
-        puts "new instance #{new_instance_json['name']}is live with ip #{new_instance_json['ip']}"
-        redis.rpush(pool['group_name'], JSON.dump(new_instance_json))
-
       rescue Exception => e
         puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
-        puts e
+        puts e.backtrace
         redis.rpush('orphaned', new_instance.name)
       end
 
@@ -165,8 +169,6 @@ end
 $warmer = Warmer.new
 $warmer.authorize!
 
-$stdout.sync = true
-
 if ENV['AUTH_TOKEN']
   use Rack::Auth::Basic, "Protected Area" do |username, password|
     Rack::Utils.secure_compare(password, ENV['AUTH_TOKEN'])
@@ -200,7 +202,6 @@ post '/request-instance' do
 end
 
 Thread.new do
-  puts "HELLO I'M A THREAD"
   loop do
     $warmer.check_pools!
   end
