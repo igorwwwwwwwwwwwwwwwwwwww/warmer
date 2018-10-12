@@ -61,6 +61,12 @@ class Warmer
         'jobs-org'
       )
 
+      interface = Google::Apis::ComputeV1::NetworkInterface.new(
+        network: network,
+        subnetwork: subnetwork,
+        access_configs: []
+      )
+
       new_instance = Google::Apis::ComputeV1::Instance.new(
         name: "travis-job-#{SecureRandom.uuid}",
         machine_type: machine_type.self_link,
@@ -80,10 +86,7 @@ class Warmer
           )
         )],
         network_interfaces: [
-          Google::Apis::ComputeV1::NetworkInterface.new(
-            network: network,
-            subnetwork: subnetwork
-          )
+          interface
         ],
         metadata: Google::Apis::ComputeV1::Metadata.new(
           items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
@@ -124,7 +127,7 @@ class Warmer
             name: instance.name,
             ip: instance.network_interfaces.first.network_ip
           }
-          puts "new instance #{new_instance_info[:name]}is live with ip #{new_instance_info[:ip]}"
+          puts "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
           redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
         rescue Google::Apis::ClientError => e
           # This should probably never happen, unless our url parsing went SUPER wonky
