@@ -3,6 +3,7 @@ require 'redis'
 require 'yaml'
 require 'json'
 require 'securerandom'
+require 'net/ssh'
 require 'google/apis/compute_v1'
 
 # https://www.rubydoc.info/github/google/google-api-ruby-client/Google/Apis/ComputeV1/ComputeService
@@ -67,6 +68,20 @@ class Warmer
         access_configs: []
       )
 
+      ssh_key = OpenSSL::PKey::RSA.new(2048)
+      ssh_public_key = ssh_key.public_key
+      ssh_private_key = ssh_key.export(
+        OpenSSL::Cipher::AES.new(256, :CBC),
+        ENV['SSH_KEY_PASSPHRASE']
+      )
+
+      startup_script = <<~RUBYEOF
+      cat > ~travis/.ssh/authorized_keys <<EOF
+        #{ssh_public_key.ssh_type} #{[ssh_public_key.to_blob].pack('m0')}
+      EOF
+      chown -R travis:travis ~travis/.ssh/
+      RUBYEOF
+
       new_instance = Google::Apis::ComputeV1::Instance.new(
         name: "travis-job-#{SecureRandom.uuid}",
         machine_type: machine_type.self_link,
@@ -89,7 +104,10 @@ class Warmer
           interface
         ],
         metadata: Google::Apis::ComputeV1::Metadata.new(
-          items: [Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true)]
+          items: [
+            Google::Apis::ComputeV1::Metadata::Item.new(key: 'block-project-ssh-keys', value: true),
+            Google::Apis::ComputeV1::Metadata::Item.new(key: 'startup-script', value: true),
+          ]
         )
       )
 
@@ -125,7 +143,8 @@ class Warmer
 
           new_instance_info = {
             name: instance.name,
-            ip: instance.network_interfaces.first.network_ip
+            ip: instance.network_interfaces.first.network_ip,
+            ssh_private_key: ssh_private_key,
           }
           puts "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
           redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
@@ -206,7 +225,8 @@ post '/request-instance' do
   content_type :json
   {
     name: instance_data['name'],
-    ip:   instance_data['ip']
+    ip:   instance_data['ip'],
+    ssh_private_key: instance_data['ssh_private_key'],
   }.to_json
 end
 
