@@ -23,12 +23,17 @@ class Warmer
       #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
       # to simply
       #   travis-ci-garnet-trusty-1503417006
-      normalized = {
+      normalized_request = {
         'image_name'   => request_body['image_name']&.split('/').last,
         'machine_type' => request_body['machine_type']&.split('/').last,
         'public_ip'    => request_body['public_ip'] || nil, # map false => nil
       }
-      normalized == pool.dup.tap { |pool| pool.delete('group_name') }
+      normalized_pool = {
+        'image_name'   => pool['image_name'],
+        'machine_type' => pool['machine_type'],
+        'public_ip'    => pool['public_ip'] || nil,
+      }
+      normalized_request == normalized_pool
     end
   end
 
