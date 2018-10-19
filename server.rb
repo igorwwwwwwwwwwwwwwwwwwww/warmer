@@ -19,8 +19,12 @@ class Warmer
 
   def match(request_body)
     config['pools'].find do |pool|
-      request_body['image_name'] == pool['image_name'] &&
-        request_body['machine_type'] == pool['machine_type'] &&
+      # we shorten an image name like
+      #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
+      # to simply
+      #   travis-ci-garnet-trusty-1503417006
+      request_body['image_name']&.split('/').last == pool['image_name'] &&
+        request_body['machine_type']&.split('/').last == pool['machine_type'] &&
         (request_body['public_ip'] || false) == (pool['public_ip'] || false)
     end
   end
