@@ -226,7 +226,7 @@ post '/request-instance' do
 
   pool = $warmer.match(payload)
   unless pool
-    puts "no matching pool found"
+    puts "no matching pool found for request #{payload}"
     content_type :json
     status 404
     return {
