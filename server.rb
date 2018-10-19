@@ -23,9 +23,12 @@ class Warmer
       #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
       # to simply
       #   travis-ci-garnet-trusty-1503417006
-      request_body['image_name']&.split('/').last == pool['image_name'] &&
-        request_body['machine_type']&.split('/').last == pool['machine_type'] &&
-        (request_body['public_ip'] || false) == (pool['public_ip'] || false)
+      normalized = {
+        'image_name'   => request_body['image_name']&.split('/').last,
+        'machine_type' => request_body['machine_type']&.split('/').last
+        'public_ip'    => request_body['public_ip'] || nil, # map false => nil
+      }
+      normalized == pool
     end
   end
 
