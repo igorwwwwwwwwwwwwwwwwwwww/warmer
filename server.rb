@@ -17,6 +17,14 @@ class Warmer
     authorizer.fetch_access_token!
   end
 
+  def match(request_body)
+    config['pools'].find do |pool|
+      request_body['image_name'] == pool['image_name'] &&
+        request_body['machine_type'] == pool['machine_type'] &&
+        (request_body['public_ip'] || false) == (pool['public_ip'] || false)
+    end
+  end
+
   def request_instance(group_name)
     redis.lpop(group_name)
   end
@@ -62,11 +70,16 @@ class Warmer
         'jobs-org'
       )
 
-      interface = Google::Apis::ComputeV1::NetworkInterface.new(
-        network: network.self_link,
-        subnetwork: subnetwork.self_link,
-        access_configs: []
-      )
+      tags = ['testing', 'org', 'warmer']
+      access_configs = []
+      if pool['public_ip']
+        access_configs << Google::Apis::ComputeV1::AccessConfig.new(
+          name: 'AccessConfig brought to you by warmer',
+          type: 'ONE_TO_ONE_NAT'
+        )
+      else
+        tags << 'no-ip'
+      end
 
       ssh_key = OpenSSL::PKey::RSA.new(2048)
       ssh_public_key = ssh_key.public_key
@@ -86,7 +99,7 @@ class Warmer
         name: "travis-job-#{SecureRandom.uuid}",
         machine_type: machine_type.self_link,
         tags: Google::Apis::ComputeV1::Tags.new({
-          items: ['testing', 'no-ip', 'org', 'warmer'],
+          items: tags,
         }),
         labels: {"warmth": "warmed"},
         scheduling: Google::Apis::ComputeV1::Scheduling.new(
@@ -101,7 +114,11 @@ class Warmer
           )
         )],
         network_interfaces: [
-          interface
+          Google::Apis::ComputeV1::NetworkInterface.new(
+            network: network.self_link,
+            subnetwork: subnetwork.self_link,
+            access_configs: access_configs
+          )
         ],
         metadata: Google::Apis::ComputeV1::Metadata.new(
           items: [
@@ -205,8 +222,18 @@ end
 
 post '/request-instance' do
   payload = JSON.parse(request.body.read)
-  group_name = "warmer-org-d-#{payload['image_name'].split('/')[-1]}" if payload['image_name']
-  group_name ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
+
+  pool = $warmer.match(payload)
+  unless pool
+    puts "no matching pool found"
+    content_type :json
+    status 404
+    return {
+      error: 'no instance available in pool'
+    }.to_json
+  end
+
+  group_name = pool['group_name']
 
   instance = $warmer.request_instance(group_name)
 
