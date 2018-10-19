@@ -25,7 +25,7 @@ class Warmer
       #   travis-ci-garnet-trusty-1503417006
       normalized = {
         'image_name'   => request_body['image_name']&.split('/').last,
-        'machine_type' => request_body['machine_type']&.split('/').last
+        'machine_type' => request_body['machine_type']&.split('/').last,
         'public_ip'    => request_body['public_ip'] || nil, # map false => nil
       }
       normalized == pool
