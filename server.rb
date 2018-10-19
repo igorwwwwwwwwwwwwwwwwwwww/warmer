@@ -168,6 +168,7 @@ class Warmer
           new_instance_info = {
             name: instance.name,
             ip: instance.network_interfaces.first.network_ip,
+            public_ip: instance.network_interfaces.first.access_configs.first&.nat_ip,
             ssh_private_key: ssh_private_key,
           }
           puts "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
@@ -259,8 +260,9 @@ post '/request-instance' do
   puts "returning instance #{instance_data['name']}, formerly in group #{group_name}"
   content_type :json
   {
-    name: instance_data['name'],
-    ip:   instance_data['ip'],
+    name:      instance_data['name'],
+    ip:        instance_data['ip'],
+    public_ip: instance_data['public_ip'],
     ssh_private_key: instance_data['ssh_private_key'],
   }.to_json
 end
