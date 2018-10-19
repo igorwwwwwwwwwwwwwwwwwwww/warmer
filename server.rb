@@ -28,7 +28,7 @@ class Warmer
         'machine_type' => request_body['machine_type']&.split('/').last,
         'public_ip'    => request_body['public_ip'] || nil, # map false => nil
       }
-      normalized == pool
+      normalized == pool.dup.tap { |pool| pool.delete('group_name') }
     end
   end
 
