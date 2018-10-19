@@ -174,6 +174,7 @@ class Warmer
 
       rescue Exception => e
         puts "Exception when creating vm, #{new_instance.name} is potentially orphaned"
+        puts e
         puts e.backtrace
         redis.rpush('orphaned', new_instance.name)
       end
