@@ -21,6 +21,26 @@ class Warmer
     authorizer.fetch_access_token!
   end
 
+  def match(request_body)
+    config['pools'].find do |pool|
+      # we shorten an image name like
+      #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
+      # to simply
+      #   travis-ci-garnet-trusty-1503417006
+      normalized_request = {
+        'image_name'   => request_body['image_name']&.split('/').last,
+        'machine_type' => request_body['machine_type']&.split('/').last,
+        'public_ip'    => request_body['public_ip'] || nil, # map false => nil
+      }
+      normalized_pool = {
+        'image_name'   => pool['image_name'],
+        'machine_type' => pool['machine_type'],
+        'public_ip'    => pool['public_ip'] || nil,
+      }
+      normalized_request == normalized_pool
+    end
+  end
+
   def request_instance(group_name)
     redis.lpop(group_name)
   end
@@ -65,11 +85,16 @@ class Warmer
         'jobs-org'
       )
 
-      interface = Google::Apis::ComputeV1::NetworkInterface.new(
-        network: network.self_link,
-        subnetwork: subnetwork.self_link,
-        access_configs: []
-      )
+      tags = ['testing', 'org', 'warmer']
+      access_configs = []
+      if pool['public_ip']
+        access_configs << Google::Apis::ComputeV1::AccessConfig.new(
+          name: 'AccessConfig brought to you by warmer',
+          type: 'ONE_TO_ONE_NAT'
+        )
+      else
+        tags << 'no-ip'
+      end
 
       ssh_key = OpenSSL::PKey::RSA.new(2048)
       ssh_public_key = ssh_key.public_key
@@ -89,7 +114,7 @@ class Warmer
         name: "travis-job-#{SecureRandom.uuid}",
         machine_type: machine_type.self_link,
         tags: Google::Apis::ComputeV1::Tags.new({
-          items: ['testing', 'no-ip', 'org', 'warmer'],
+          items: tags,
         }),
         labels: {"warmth": "warmed"},
         scheduling: Google::Apis::ComputeV1::Scheduling.new(
@@ -104,7 +129,11 @@ class Warmer
           )
         )],
         network_interfaces: [
-          interface
+          Google::Apis::ComputeV1::NetworkInterface.new(
+            network: network.self_link,
+            subnetwork: subnetwork.self_link,
+            access_configs: access_configs
+          )
         ],
         metadata: Google::Apis::ComputeV1::Metadata.new(
           items: [
@@ -147,6 +176,7 @@ class Warmer
           new_instance_info = {
             name: instance.name,
             ip: instance.network_interfaces.first.network_ip,
+            public_ip: instance.network_interfaces.first.access_configs.first&.nat_ip,
             ssh_private_key: ssh_private_key,
           }
           log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
@@ -207,35 +237,46 @@ end
 post '/request-instance' do
   begin
     payload = JSON.parse(request.body.read)
-    group_name = "warmer-org-d-#{payload['image_name'].split('/')[-1]}" if payload['image_name']
-    group_name ||= 'warmer-org-d-travis-ci-amethyst-trusty-1512508224-986baf0'
-    
-    instance = $warmer.request_instance(group_name)
-    
-    if instance.nil?
-      log.info "no instances available in group #{group_name}"
+
+    pool = $warmer.match(payload)
+    unless pool
+      log.error "no matching pool found for request #{payload}"
       content_type :json
-      status 409 # Conflict
+      status 404
       return {
         error: 'no instance available in pool'
       }.to_json
     end
-    
-    instance_data = JSON.parse(instance)
-    log.info "returning instance #{instance_data['name']}, formerly in group #{group_name}"
-    content_type :json
-    {
-      name: instance_data['name'],
-      ip:   instance_data['ip'],
-      ssh_private_key: instance_data['ssh_private_key'],
-    }.to_json
-  rescue
+
+    group_name = pool['group_name']
+
+    instance = $warmer.request_instance(group_name)
+
+    if instance.nil?
+      log.error "no instances available in group #{group_name}"
+      content_type :json
+      {
+        name: instance_data['name'],
+        ip:   instance_data['ip'],
+        ssh_private_key: instance_data['ssh_private_key'],
+      }.to_json
+   rescue
     log.error e.message
     status 500
     return {
-      error: e.message
-    }.to_json
-  end
+        error: e.message
+      }.to_json
+    end
+
+  instance_data = JSON.parse(instance)
+  log.info "returning instance #{instance_data['name']}, formerly in group #{group_name}"
+  content_type :json
+  {
+    name:      instance_data['name'],
+    ip:        instance_data['ip'],
+    public_ip: instance_data['public_ip'],
+    ssh_private_key: instance_data['ssh_private_key'],
+  }.to_json
 end
 
 Thread.new do
