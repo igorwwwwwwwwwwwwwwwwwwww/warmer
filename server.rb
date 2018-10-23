@@ -13,8 +13,11 @@ require 'yaml'
 $stdout.sync = true
 $stderr.sync = true
 
-log = Logger.new(STDOUT)
-log.level = Logger::WARN
+$log = Logger.new(STDOUT)
+$log.level = Logger::WARN
+
+error_interval = ENV['ERROR_INTERVAL']&.to_i || 60
+max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
 
 class Warmer
   def authorize!
@@ -47,16 +50,15 @@ class Warmer
 
   def check_pools!
     config['pools'].each do |pool|
-      log.info "checking size of pool #{pool}"
+      $log.info "checking size of pool #{pool}"
       if redis.llen("orphaned") <= ENV['ORPHAN_THRESHOLD'].to_i
         if redis.llen(pool['group_name']) < pool['target_size']
           # TODO: eventually have this support more than just GCE
           increase_size(pool)
         end
       else
-        log.error "too many orphaned VMs, not creating any more in case something is bork"
+        $log.error "too many orphaned VMs, not creating any more in case something is bork"
       end
-      sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
     end
   end
 
@@ -64,7 +66,7 @@ class Warmer
 
   def increase_size(pool)
     size_difference = pool['target_size'] - redis.llen(pool['group_name'])
-    log.info "increasing size of pool #{pool['group_name']} by #{size_difference}"
+    $log.info "increasing size of pool #{pool['group_name']} by #{size_difference}"
     size_difference.times do
       zone = random_zone
 
@@ -143,14 +145,14 @@ class Warmer
         )
       )
 
-      log.info "inserting instance #{new_instance.name} into zone #{zone}"
+      $log.info "inserting instance #{new_instance.name} into zone #{zone}"
       instance_operation = compute.insert_instance(
         ENV['GOOGLE_CLOUD_PROJECT'],
         File.basename(zone),
         new_instance
       )
 
-      log.info "waiting for new instance #{new_instance.name} operation to complete"
+      $log.info "waiting for new instance #{new_instance.name} operation to complete"
       begin
         slept = 0
         while instance_operation.status != 'DONE'
@@ -179,16 +181,16 @@ class Warmer
             public_ip: instance.network_interfaces.first.access_configs.first&.nat_ip,
             ssh_private_key: ssh_private_key,
           }
-          log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
+          $log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
           redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
         rescue Google::Apis::ClientError => e
           # This should probably never happen, unless our url parsing went SUPER wonky
-          log.error "error creating new instance in group #{pool['group_name']}: #{e}"
+          $log.error "error creating new instance in group #{pool['group_name']}: #{e}"
           raise Exception.new("Google::Apis::ClientError creating instance: #{e}")
         end
 
       rescue Exception => e
-        log.error "Exception when creating vm, #{new_instance.name} is potentially orphaned: #{e.backtrace}"
+        $log.error "Exception when creating vm, #{new_instance.name} is potentially orphaned: #{e.backtrace}"
         redis.rpush('orphaned', new_instance.name)
       end
 
@@ -240,7 +242,7 @@ post '/request-instance' do
 
     pool = $warmer.match(payload)
     unless pool
-      log.error "no matching pool found for request #{payload}"
+      $log.error "no matching pool found for request #{payload}"
       content_type :json
       status 404
       return {
@@ -253,15 +255,16 @@ post '/request-instance' do
     instance = $warmer.request_instance(group_name)
 
     if instance.nil?
-      log.error "no instances available in group #{group_name}"
+      $log.error "no instances available in group #{group_name}"
       content_type :json
       {
         name: instance_data['name'],
         ip:   instance_data['ip'],
         ssh_private_key: instance_data['ssh_private_key'],
       }.to_json
-   rescue
-    log.error e.message
+    end
+   rescue StandardError => e 
+    $log.error e.message
     status 500
     return {
         error: e.message
@@ -269,7 +272,7 @@ post '/request-instance' do
     end
 
   instance_data = JSON.parse(instance)
-  log.info "returning instance #{instance_data['name']}, formerly in group #{group_name}"
+  $log.info "returning instance #{instance_data['name']}, formerly in group #{group_name}"
   content_type :json
   {
     name:      instance_data['name'],
@@ -280,7 +283,23 @@ post '/request-instance' do
 end
 
 Thread.new do
+  start_time = Time.now
+  errors = 0
   loop do
-    $warmer.check_pools!
+    begin
+      $warmer.check_pools!
+      sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
+    rescue StandardError => e
+      $log.error "#{e.message}: #{e.backtrace}"
+      if Time.now - start_time > error_interval
+        # enough time has passed since the last batch of errors, we should reset the counter
+        errors = 0
+        start_time = Time.now
+      else
+        errors += 1
+        break if errors >= max_error_count
+      end
+    end
   end
+  $log.error "Too many errors - Stopped checking instance pools!"
 end
