@@ -178,7 +178,7 @@ class Warmer
           new_instance_info = {
             name: instance.name,
             ip: instance.network_interfaces.first.network_ip,
-            public_ip: instance.network_interfaces.first.access_configs.first&.nat_ip,
+            public_ip: instance.network_interfaces.first.access_configs&.first.nat_ip,
             ssh_private_key: ssh_private_key,
           }
           $log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
@@ -257,10 +257,9 @@ post '/request-instance' do
     if instance.nil?
       $log.error "no instances available in group #{group_name}"
       content_type :json
-      {
-        name: instance_data['name'],
-        ip:   instance_data['ip'],
-        ssh_private_key: instance_data['ssh_private_key'],
+      status 409 # Conflict
+      return {
+        error: 'no instance available in pool'
       }.to_json
     end
    rescue StandardError => e 
