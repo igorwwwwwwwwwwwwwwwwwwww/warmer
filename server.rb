@@ -178,7 +178,7 @@ class Warmer
           new_instance_info = {
             name: instance.name,
             ip: instance.network_interfaces.first.network_ip,
-            public_ip: instance.network_interfaces.first.access_configs&.first.nat_ip,
+            public_ip: instance.network_interfaces.first.access_configs&.first&.nat_ip,
             ssh_private_key: ssh_private_key,
           }
           $log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
