@@ -192,7 +192,11 @@ class Warmer
 
       rescue Exception => e
         $log.error "Exception when creating vm, #{new_instance.name} is potentially orphaned. #{e.message}: #{e.backtrace}"
-        redis.rpush('orphaned', {name: new_instance.name, zone: zone})
+        orphaned_instance_info = {
+          name: new_instance.name,
+          zone: zone
+        }
+        redis.rpush('orphaned', JSON.dump(orphaned_instance_info))
       end
 
     end # times
