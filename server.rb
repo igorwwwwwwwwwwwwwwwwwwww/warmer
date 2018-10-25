@@ -14,7 +14,7 @@ $stdout.sync = true
 $stderr.sync = true
 
 $log = Logger.new(STDOUT)
-$log.level = Logger::WARN
+$log.level = Logger::INFO
 
 error_interval = ENV['ERROR_INTERVAL']&.to_i || 60
 max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
