@@ -180,6 +180,7 @@ class Warmer
             ip: instance.network_interfaces.first.network_ip,
             public_ip: instance.network_interfaces.first.access_configs&.first&.nat_ip,
             ssh_private_key: ssh_private_key,
+            zone: zone,
           }
           $log.info "new instance #{new_instance_info[:name]} is live with ip #{new_instance_info[:ip]}"
           redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
@@ -191,7 +192,7 @@ class Warmer
 
       rescue Exception => e
         $log.error "Exception when creating vm, #{new_instance.name} is potentially orphaned. #{e.message}: #{e.backtrace}"
-        redis.rpush('orphaned', new_instance.name)
+        redis.rpush('orphaned', {name: new_instance.name, zone: zone})
       end
 
     end # times
