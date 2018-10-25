@@ -36,7 +36,7 @@ loop do
                     ENV['GOOGLE_CLOUD_PROJECT'],
                     File.basename(zone),
                     name)
-                tracked_instances.add(instance)
+                tracked_instances.add(instance.name)
             rescue StandardError => e
                 log.info "Couldn't get instance #{name}: #{e.message}"
                 # instance is no longer there, remove it from Redis
@@ -44,6 +44,25 @@ loop do
                 redis.lrem(p, 0, instance)
             end 
         end
+
+        # Next we go through the 'warmer' instances in GCE to find ones that aren't tracked in Redis
+        zones = [
+            "#{ENV['GOOGLE_CLOUD_REGION']}-a", 
+            "#{ENV['GOOGLE_CLOUD_REGION']}-b", 
+            "#{ENV['GOOGLE_CLOUD_REGION']}-c", 
+            "#{ENV['GOOGLE_CLOUD_REGION']}-f"]
+        zones.each do |zone|
+            # Todo: filter based on the warmer tag
+            instances = compute.list_instances(
+                ENV['GOOGLE_CLOUD_PROJECT'], zone)
+            instances.items.each do |instance|
+                unless tracked_instances.include?(instance.name)
+                    puts "Should remove #{instance.name}"
+                end
+            end
+        end
+
+
       end
       redis.close
       sleep ENV['INSTANCE_CHECK_INTERVAL'].to_i
