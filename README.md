@@ -58,7 +58,7 @@ rest of the env vars described in the local testing section):
 
 When your changes are ready to be deployed to staging, they can be deployed by running:
 
-`git push heroku your-cool-staging-branch-name`
+`git push heroku your-cool-staging-branch-name:master`
 
 Make sure to keep git and heroku in sync.
 
