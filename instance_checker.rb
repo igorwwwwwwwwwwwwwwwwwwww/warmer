@@ -16,6 +16,7 @@ authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
 compute = Google::Apis::ComputeV1::ComputeService.new.tap do |compute|
     compute.authorization = authorizer
 end
+config = YAML.load(ENV['CONFIG'])
 
 start_time = Time.now
 errors = 0
@@ -25,46 +26,53 @@ loop do
       tracked_instances = Set.new()
 
       # We first check if all the currently tracked instances still exist
-      pools = redis.keys('*')
+      pools = config['pools'].map { |a| a['group_name'] }
       pools.each do |p|
-        len = redis.llen(p)
-        redis.lrange(p, 0, len).each do |instance|
+          len = redis.llen(p)
+          redis.lrange(p, 0, len).each do |instance|
             name = JSON.parse(instance)['name']
             zone = JSON.parse(instance)['zone']
             begin
-                instance = compute.get_instance(
-                    ENV['GOOGLE_CLOUD_PROJECT'],
-                    File.basename(zone),
-                    name)
-                tracked_instances.add(instance.name)
+              instance = compute.get_instance(
+                  ENV['GOOGLE_CLOUD_PROJECT'],
+                  File.basename(zone),
+                  name)
+              tracked_instances.add(instance.name)
             rescue StandardError => e
-                log.info "Couldn't get instance #{name}: #{e.message}"
-                # instance is no longer there, remove it from Redis
-                log.info "Removing #{name} from redis since it is unreachable"
-                redis.lrem(p, 0, instance)
-            end 
-        end
-
-        # Next we go through the 'warmer' instances in GCE to find ones that aren't tracked in Redis
-        zones = [
-            "#{ENV['GOOGLE_CLOUD_REGION']}-a", 
-            "#{ENV['GOOGLE_CLOUD_REGION']}-b", 
-            "#{ENV['GOOGLE_CLOUD_REGION']}-c", 
-            "#{ENV['GOOGLE_CLOUD_REGION']}-f"]
-        zones.each do |zone|
-            # Todo: filter based on the warmer tag
-            instances = compute.list_instances(
-                ENV['GOOGLE_CLOUD_PROJECT'], zone)
-            instances.items.each do |instance|
-                unless tracked_instances.include?(instance.name)
-                    puts "Should remove #{instance.name}"
-                end
+              log.info "Couldn't get instance #{name}: #{e.message}"
+              # instance is no longer there, remove it from Redis
+              log.info "Removing #{name} from redis since it is unreachable"
+              redis.lrem(p, 0, instance)
             end
-        end
-
-
+          end
       end
       redis.close
+
+      # Next, now that we have all the instances tracked across all pools, we go
+      # through the 'warmer' instances in GCE to find ones that aren't tracked
+      # in redis. This happens separately because GCE doesn't have the same
+      # concept of 'pools' that redis does.
+      zones = [
+          "#{ENV['GOOGLE_CLOUD_REGION']}-a",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-b",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-c",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-f"]
+      zones.each do |zone|
+        instances = compute.list_instances(
+            ENV['GOOGLE_CLOUD_PROJECT'], zone,
+            filter: "labels.warmth:warmed")
+        unless instances.items.nil?
+          instances.items.each do |instance|
+            unless tracked_instances.include?(instance.name)
+                log.info "Removing #{instance.name} from GCE since it isn't tracked in redis"
+                compute.delete_instance(
+                  ENV['GOOGLE_CLOUD_PROJECT'], zone, instance.name
+                )
+            end
+          end
+        end
+      end
+
       sleep ENV['INSTANCE_CHECK_INTERVAL'].to_i
     rescue StandardError => e
       log.error "#{e.message}: #{e.backtrace}"
