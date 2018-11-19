@@ -20,9 +20,9 @@ There is one pool per image name.
 
 ## How is it deployed/where does it run?
 
-Warmer runs in heroku. There are two ruby services that run, `server` and
-`instance_checker`. There is also the redis instance that maintains the lists
-of available warmed instances in each pool.
+Warmer is a Sinatra app that runs in heroku. There are two ruby services that
+run, `server` and `instance_checker`. There is also the redis instance that
+maintains the lists of available warmed instances in each pool.
 
 ## How can I test it?
 
@@ -58,14 +58,41 @@ rest of the env vars described in the local testing section):
 
 When your changes are ready to be deployed to staging, they can be deployed by running:
 
-`git push heroku your-cool-staging-branch-name:master`
+`git push heroku your-cool-staging-branch-name`
 
-Make sure to keep git and heroku in sync.
+Make sure to keep git and heroku in sync. To actually **turn on** the warmer
+service in staging, you will need to enable it with [trvs](https://github.com/travis-ci/trvs):
+
+`trvs redis-cli travis-staging REDIS_URL set warmer.rollout.enabled 1`
+
+(To turn the warmer off, run the same command without the `1` at the end.)
 
 #### What's in the staging redis?
 
-TODO
+To see what's going on in redis, you can run:
+
+`trvs redis-cli travis-staging REDIS_URL`
+
+**Please note:** This redis instance is not just for warmer, and in fact is the live
+redis for all of staging. If you want to test with a local redis, you can run
+`redis-server` locally and change your `REDIS_URL` environment variable (to something
+like `REDIS_URL=redis://localhost:6379`) and use just `redis-cli` to look at
+keys and lists locally that way.
 
 ### Deploying to production
 
 TODO
+
+## Monitoring warmer
+
+There are a couple different ways that you can check on the health of the Warmer
+service.
+
+- In the GCP console, you can look at how many instances with the `warmth:warmed`
+label are running.
+
+- Logs from heroku can be viewed with `heroku logs --tail`.
+
+- Check which heroku processes are running with `heroku ps`. You can change how
+many processes are supposed to be running from the command line with the `ps:scale`
+command, such as `heroku ps:scale web=0`. 
