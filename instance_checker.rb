@@ -243,25 +243,25 @@ $checker = InstanceChecker.new
 $checker.authorize!
 
 unless ENV['UNIT_TESTS'] == 'true'
-  Thread.new do
-    start_time = Time.now
-    errors = 0
-    loop do
-      begin
-        $checker.check_pools!
-        sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
-      rescue StandardError => e
-        $log.error "#{e.message}: #{e.backtrace}"
-        if Time.now - start_time > error_interval
-          # enough time has passed since the last batch of errors, we should reset the counter
-          errors = 0
-          start_time = Time.now
-        else
-          errors += 1
-          break if errors >= max_error_count
-        end
+  start_time = Time.now
+  errors = 0
+
+  loop do
+    begin
+      $checker.check_pools!
+      sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
+    rescue StandardError => e
+      $log.error "#{e.message}: #{e.backtrace}"
+      if Time.now - start_time > error_interval
+        # enough time has passed since the last batch of errors, we should reset the counter
+        errors = 0
+        start_time = Time.now
+      else
+        errors += 1
+        break if errors >= max_error_count
       end
     end
-    $log.error "Too many errors - Stopped checking instance pools!"
-  end
+  end # loop
+
+  $log.error "Too many errors - Stopped checking instance pools!"
 end
