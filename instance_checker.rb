@@ -6,6 +6,9 @@ require 'set'
 require 'net/ssh'
 require_relative 'warmer'
 
+$stdout.sync = true
+$stderr.sync = true
+
 $log = Logger.new(STDOUT)
 $log.level = Logger::INFO
 
@@ -15,6 +18,9 @@ max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
 class InstanceChecker < Warmer
 
   def check_pools!
+    # Put the cleanup step first in case the orphan threshold makes this return
+    clean_up_orphans
+
     num_warmed_instances = get_num_warmed_instances
     num_redis_instances = get_num_redis_instances
 
@@ -30,7 +36,6 @@ class InstanceChecker < Warmer
       end
     end
 
-    clean_up_orphans
   end
 
   def clean_up_orphans(queue='orphaned')
@@ -224,14 +229,15 @@ class InstanceChecker < Warmer
   end
 
   def delete_instance(zone, name)
+    # Zone is passed in as a url, needs to be a string
     begin
       compute.delete_instance(
         ENV['GOOGLE_CLOUD_PROJECT'],
-        File.basename(zone),
+        zone.split('/').last,
         name
       )
     rescue Exception => e
-      $log.error "Error deleting instance #{name} from zone #{zone}"
+      $log.error "Error deleting instance #{name} from zone #{zone.split('/').last}"
       $log.error "#{e.message}: #{e.backtrace}"
     end
   end
