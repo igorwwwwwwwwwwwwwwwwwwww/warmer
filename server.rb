@@ -51,7 +51,7 @@ class Matcher < Warmer
     if instance_object.nil?
       request_instance(group_name)
       # This takes care of the "deleting from redis" cleanup that used to happen in
-      # the instance checker. 
+      # the instance checker.
     else
       label_instance(instance_object)
       instance
@@ -138,6 +138,7 @@ post '/request-instance' do
   content_type :json
   {
     name:      instance_data['name'],
+    zone:      instance_data['zone'],
     ip:        instance_data['ip'],
     public_ip: instance_data['public_ip'],
     ssh_private_key: instance_data['ssh_private_key'],

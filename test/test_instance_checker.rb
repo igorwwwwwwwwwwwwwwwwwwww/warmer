@@ -48,6 +48,10 @@ class InstanceCheckerTest < Test::Unit::TestCase
     instance_checker.redis.del('orphaned-test')
   end
 
+  # TODO test orphan detection/cleanup/etc
+
+  # TODO test mocking out timeouts/errors from GCP
+
 end
 
 # unset this at the end

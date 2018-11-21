@@ -184,7 +184,7 @@ class InstanceChecker < Warmer
       end
 
     rescue Exception => e
-      $log.error "Exception when creating vm, #{name} is potentially orphaned. #{e.message}: #{e.backtrace}"
+      $log.error "Exception when creating vm, #{new_instance.name} is potentially orphaned. #{e.message}: #{e.backtrace}"
       orphaned_instance_info = {
         name: new_instance.name,
         zone: zone
