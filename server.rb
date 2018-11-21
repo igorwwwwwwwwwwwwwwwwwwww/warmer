@@ -138,7 +138,7 @@ post '/request-instance' do
   content_type :json
   {
     name:      instance_data['name'],
-    zone:      instance_data['zone'],
+    zone:      instance_data['zone'].split('/').last,
     ip:        instance_data['ip'],
     public_ip: instance_data['public_ip'],
     ssh_private_key: instance_data['ssh_private_key'],
