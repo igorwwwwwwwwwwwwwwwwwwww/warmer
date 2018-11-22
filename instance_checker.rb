@@ -29,7 +29,7 @@ class InstanceChecker < Warmer
       return
     end
 
-    config['pools'].each do |pool|
+    pools.each do |pool|
       $log.info "checking size of pool #{pool}"
       if redis.llen(pool['group_name']) < pool['target_size']
         increase_size(pool)
@@ -63,6 +63,11 @@ class InstanceChecker < Warmer
   end
 
   def create_instance(pool, zone)
+    if pool.nil?
+      $log.error "Pool configuration malformed or missing, cannot create instance"
+      return nil
+    end
+
     machine_type = compute.get_machine_type(
       ENV['GOOGLE_CLOUD_PROJECT'],
       File.basename(zone),
@@ -145,6 +150,7 @@ class InstanceChecker < Warmer
       new_instance
     )
 
+    vm_creation_timeout = ENV['VM_CREATION_TIMEOUT']&.to_i || 80
     $log.info "waiting for new instance #{instance_operation.name} operation to complete"
     begin
       slept = 0
@@ -156,7 +162,7 @@ class InstanceChecker < Warmer
           File.basename(zone),
           instance_operation.name
         )
-        if slept > ENV['VM_CREATION_TIMEOUT'].to_i
+        if slept > vm_creation_timeout
           raise Exception.new("Timeout waiting for new instance operation to complete")
         end
       end
@@ -214,7 +220,7 @@ class InstanceChecker < Warmer
 
   def get_num_redis_instances
     total = 0
-    config['pools'].each do |pool|
+    pools.each do |pool|
       total += redis.llen(pool['group_name'])
     end
     total

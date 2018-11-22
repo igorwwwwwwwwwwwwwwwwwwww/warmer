@@ -1,3 +1,6 @@
+require 'json'
+require 'redis'
+
 $log = Logger.new(STDOUT)
 $log.level = Logger::INFO
 
@@ -34,8 +37,8 @@ class Warmer
     )
   end
 
-  def config
-    @config ||= YAML.load(ENV['CONFIG'])
+  def pools
+    @pools ||= redis.smembers('warmerpools').map { |pool| JSON.parse(pool) }
   end
 
 end

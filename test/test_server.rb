@@ -77,7 +77,6 @@ class ServerTest < Test::Unit::TestCase
 
     # put the test label back
     matcher.label_instance(obj, {'cats': 'aregreat'})
-
   end
 
 end

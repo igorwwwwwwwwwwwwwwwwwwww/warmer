@@ -8,7 +8,7 @@ require 'mocha/test_unit'
 require_relative '../instance_checker'
 
 class InstanceChecker
-  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :config, :redis
+  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :pools, :redis
 end
 
 class InstanceCheckerTest < Test::Unit::TestCase
@@ -23,7 +23,7 @@ class InstanceCheckerTest < Test::Unit::TestCase
 
   def test_create_and_verify_instance
     instance_checker = InstanceChecker.new
-    pool = instance_checker.config['pools'].first
+    pool = instance_checker.pools.first
     zone = instance_checker.random_zone
     new_instance_info = instance_checker.create_instance(pool, zone)
 
