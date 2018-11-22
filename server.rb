@@ -53,7 +53,7 @@ class Matcher < Warmer
       # This takes care of the "deleting from redis" cleanup that used to happen in
       # the instance checker.
     else
-      label_instance(instance_object)
+      label_instance(instance_object, {'warmth': 'cooled'})
       instance
     end
 
