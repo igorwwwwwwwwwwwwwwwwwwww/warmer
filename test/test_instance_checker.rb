@@ -52,6 +52,19 @@ class InstanceCheckerTest < Test::Unit::TestCase
 
   # TODO test mocking out timeouts/errors from GCP
 
+  def test_pool_refresh
+    instance_checker = InstanceChecker.new
+    pools = instance_checker.pools
+    assert_equal(1, pools.size)
+
+    instance_checker.redis.sadd('warmerpools', '{"foo": "bar"}')
+    sleep 70
+    pools = instance_checker.pools
+    assert_equal(2, pools.size)
+
+    instance_checker.redis.srem('warmerpools', '{"foo": "bar"}')
+  end
+
 end
 
 # unset this at the end
