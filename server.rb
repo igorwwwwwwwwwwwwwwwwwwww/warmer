@@ -23,7 +23,7 @@ max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
 class Matcher < Warmer
 
   def match(request_body)
-    config['pools'].find do |pool|
+    pools.find do |pool|
       # we shorten an image name like
       #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
       # to simply

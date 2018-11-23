@@ -1,5 +1,8 @@
 language: ruby
 services:
   - redis-server
-script: 
+before_script:
+  - redis-cli DEL warmerpools
+  - redis-cli SADD warmerpools "$TESTPOOLS"
+script:
   - bundle exec rake

@@ -8,7 +8,7 @@ require 'mocha/test_unit'
 require_relative '../instance_checker'
 
 class InstanceChecker
-  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :config, :redis
+  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :pools, :redis
 end
 
 class InstanceCheckerTest < Test::Unit::TestCase
@@ -23,7 +23,7 @@ class InstanceCheckerTest < Test::Unit::TestCase
 
   def test_create_and_verify_instance
     instance_checker = InstanceChecker.new
-    pool = instance_checker.config['pools'].first
+    pool = instance_checker.pools.first
     zone = instance_checker.random_zone
     new_instance_info = instance_checker.create_instance(pool, zone)
 
@@ -51,6 +51,19 @@ class InstanceCheckerTest < Test::Unit::TestCase
   # TODO test orphan detection/cleanup/etc
 
   # TODO test mocking out timeouts/errors from GCP
+
+  def test_pool_refresh
+    instance_checker = InstanceChecker.new
+    pools = instance_checker.pools
+    assert_equal(1, pools.size)
+
+    instance_checker.redis.sadd('warmerpools', '{"foo": "bar"}')
+    sleep 70
+    pools = instance_checker.pools
+    assert_equal(2, pools.size)
+
+    instance_checker.redis.srem('warmerpools', '{"foo": "bar"}')
+  end
 
 end
 
