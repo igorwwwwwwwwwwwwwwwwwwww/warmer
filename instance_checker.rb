@@ -62,7 +62,7 @@ class InstanceChecker < Warmer
     end
   end
 
-  def create_instance(pool, zone)
+  def create_instance(pool, zone, labels={"warmth": "warmed"})
     if pool.nil?
       $log.error "Pool configuration malformed or missing, cannot create instance"
       return nil
