@@ -54,29 +54,10 @@ class ServerTest < Test::Unit::TestCase
     assert_equal("better_instance", instance)
   end
 
-  def test_get_instance_object
-    matcher = Matcher.new
-    obj = matcher.get_instance_object(@instance)
-    assert_not_nil(obj)
-  end
-
   def test_get_instance_object_doesnt_exist
     matcher = Matcher.new
     obj = matcher.get_instance_object(@bad_instance)
     assert_nil(obj)
-  end
-
-  def test_label_instance
-    matcher = Matcher.new
-    obj = matcher.get_instance_object(@instance)
-    matcher.label_instance(obj)
-    # make sure this has time to happen
-    sleep 5
-    obj = matcher.get_instance_object(@instance)
-    assert_nil(obj.labels)
-
-    # put the test label back
-    matcher.label_instance(obj, {'cats': 'aregreat'})
   end
 
 end

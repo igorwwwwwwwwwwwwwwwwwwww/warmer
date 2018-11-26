@@ -62,7 +62,7 @@ class InstanceChecker < Warmer
     end
   end
 
-  def create_instance(pool, zone)
+  def create_instance(pool, zone, labels={"warmth": "warmed"})
     if pool.nil?
       $log.error "Pool configuration malformed or missing, cannot create instance"
       return nil
@@ -116,7 +116,7 @@ class InstanceChecker < Warmer
       tags: Google::Apis::ComputeV1::Tags.new({
         items: tags,
       }),
-      labels: {"warmth": "warmed"},
+      labels: labels,
       scheduling: Google::Apis::ComputeV1::Scheduling.new(
         automatic_restart: true,
         on_host_maintenance: 'MIGRATE'
@@ -150,7 +150,7 @@ class InstanceChecker < Warmer
       new_instance
     )
 
-    vm_creation_timeout = ENV['VM_CREATION_TIMEOUT']&.to_i || 80
+    vm_creation_timeout = ENV['VM_CREATION_TIMEOUT']&.to_i || 90
     $log.info "waiting for new instance #{instance_operation.name} operation to complete"
     begin
       slept = 0
@@ -237,6 +237,7 @@ class InstanceChecker < Warmer
   def delete_instance(zone, name)
     # Zone is passed in as a url, needs to be a string
     begin
+      $log.info "Deleting instance #{name} from #{zone}"
       compute.delete_instance(
         ENV['GOOGLE_CLOUD_PROJECT'],
         zone.split('/').last,
