@@ -13,23 +13,25 @@ end
 
 class InstanceCheckerTest < Test::Unit::TestCase
 
-  def test_get_num_warmed_instances
-    instance_checker = InstanceChecker.new
-    num = instance_checker.get_num_warmed_instances("labels.cats:aregreat")
-    assert_equal(1, num)
-  end
-
   # TODO: if we want to test the redis methods, we should set up a repeatable way of doing that
 
   def test_create_and_verify_instance
     instance_checker = InstanceChecker.new
     pool = instance_checker.pools.first
     zone = instance_checker.random_zone
-    new_instance_info = instance_checker.create_instance(pool, zone)
+    new_instance_info = instance_checker.create_instance(pool, zone, {"warmth": "test"})
 
+    # If this times out but the instance was in fact created, the cleanup won't happen
     assert_not_nil(new_instance_info[:name])
 
+    num = instance_checker.get_num_warmed_instances("labels.warmth:test")
+
     instance_checker.delete_instance(zone, new_instance_info[:name])
+    sleep 160 # Deletion takes a long time.
+
+    new_num = instance_checker.get_num_warmed_instances("labels.warmth:test")
+    assert_equal(1, num) # Move this down here so the deletion happens even if the creation times out
+    assert_equal(0, new_num)
   end
 
   def test_clean_up_orphans
@@ -47,8 +49,6 @@ class InstanceCheckerTest < Test::Unit::TestCase
 
     instance_checker.redis.del('orphaned-test')
   end
-
-  # TODO test orphan detection/cleanup/etc
 
   # TODO test mocking out timeouts/errors from GCP
 
