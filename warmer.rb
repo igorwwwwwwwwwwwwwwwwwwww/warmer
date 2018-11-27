@@ -40,8 +40,8 @@ class Warmer
   def pools
     @start_time ||= Time.now
     if Time.now - @start_time > 60 or @pools.nil?
-      @pools = redis.smembers('warmerpools').map { |pool| JSON.parse(pool) }
       $log.info "Refreshing pool configs from redis"
+      @pools = redis.smembers('warmerpools').map { |pool| JSON.parse(pool) }
       @start_time = Time.now
     end
     @pools

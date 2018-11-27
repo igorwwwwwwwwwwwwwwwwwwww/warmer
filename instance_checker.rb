@@ -18,9 +18,11 @@ max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
 class InstanceChecker < Warmer
 
   def check_pools!
+    $log.info "in the pool checker"
     # Put the cleanup step first in case the orphan threshold makes this return
     clean_up_orphans
 
+    $log.info "checking total orphan count"
     num_warmed_instances = get_num_warmed_instances
     num_redis_instances = get_num_redis_instances
 
@@ -29,6 +31,7 @@ class InstanceChecker < Warmer
       return
     end
 
+    $log.info "starting check of #{pools.size} warmed pools..."
     pools.each do |pool|
       $log.info "checking size of pool #{pool}"
       current_size = redis.llen(pool['group_name'])
@@ -41,7 +44,9 @@ class InstanceChecker < Warmer
   end
 
   def clean_up_orphans(queue='orphaned')
+    $log.info "cleaning up orphan queue #{queue}"
     num_orphans = redis.llen(queue)
+    $log.info "#{num_orphans} orphans to clean up..."
     num_orphans.times do
       # Using .times so that if orphans are being constantly added, this won't
       # be an infinite loop
@@ -49,7 +54,6 @@ class InstanceChecker < Warmer
       $log.info "deleting orphaned instance #{orphan['name']} from #{orphan['zone']}"
       delete_instance(orphan['name'], orphan['zone'])
     end
-
   end
 
   private

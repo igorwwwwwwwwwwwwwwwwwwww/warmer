@@ -127,6 +127,7 @@ post '/request-instance' do
     end
    rescue StandardError => e
     $log.error e.message
+    $log.error e.backtrace
     status 500
     return {
         error: e.message
