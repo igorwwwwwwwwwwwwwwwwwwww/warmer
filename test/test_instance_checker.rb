@@ -8,7 +8,7 @@ require 'mocha/test_unit'
 require_relative '../instance_checker'
 
 class InstanceChecker
-  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :pools, :redis
+  public :get_num_warmed_instances, :create_instance, :delete_instance, :random_zone, :pools, :redis, :compute
 end
 
 class InstanceCheckerTest < Test::Unit::TestCase
@@ -21,17 +21,28 @@ class InstanceCheckerTest < Test::Unit::TestCase
     zone = instance_checker.random_zone
     new_instance_info = instance_checker.create_instance(pool, zone, {"warmth": "test"})
 
-    # If this times out but the instance was in fact created, the cleanup won't happen
-    assert_not_nil(new_instance_info[:name])
+    begin
+      new_name = new_instance_info[:name]
+      assert_not_nil(new_name)
+    rescue NoMethodError => e
+      puts "Instance creation probably timed out, deleting test instance..."
+      clean_up_test_instances
+    end
 
     num = instance_checker.get_num_warmed_instances("labels.warmth:test")
 
-    instance_checker.delete_instance(zone, new_instance_info[:name])
+    instance_checker.delete_instance(new_instance_info[:name], zone)
     sleep 160 # Deletion takes a long time.
-
     new_num = instance_checker.get_num_warmed_instances("labels.warmth:test")
-    assert_equal(1, num) # Move this down here so the deletion happens even if the creation times out
-    assert_equal(0, new_num)
+
+    begin
+      assert_equal(1, num) # Move this down here so the deletion happens even if the creation times out
+      assert_equal(0, new_num)
+    rescue
+      puts "Assertion(s) failed which likely means that an instance didn't get deleted in time, let's clean them up"
+      clean_up_test_instances
+      assert_false(true) # This is so the test still fails
+    end
   end
 
   def test_clean_up_orphans
@@ -63,6 +74,25 @@ class InstanceCheckerTest < Test::Unit::TestCase
     assert_equal(2, pools.size)
 
     instance_checker.redis.srem('warmerpools', '{"foo": "bar"}')
+  end
+
+  def clean_up_test_instances
+    instance_checker = InstanceChecker.new
+    zones = [
+          "#{ENV['GOOGLE_CLOUD_REGION']}-a",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-b",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-c",
+          "#{ENV['GOOGLE_CLOUD_REGION']}-f"]
+    zones.each do |zone|
+      instances = instance_checker.compute.list_instances(
+          ENV['GOOGLE_CLOUD_PROJECT'], zone,
+          filter: "labels.warmth:test")
+      unless instances.items.nil?
+        instances.items.each do |instance|
+          instance_checker.delete_instance(instance.name, zone)
+        end
+      end
+    end
   end
 
 end

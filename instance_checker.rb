@@ -31,7 +31,9 @@ class InstanceChecker < Warmer
 
     pools.each do |pool|
       $log.info "checking size of pool #{pool}"
-      if redis.llen(pool['group_name']) < pool['target_size']
+      current_size = redis.llen(pool['group_name'])
+      $log.info "current size is #{current_size}, should be #{pool['target_size']}"
+      if current_size < pool['target_size']
         increase_size(pool)
       end
     end
@@ -234,7 +236,7 @@ class InstanceChecker < Warmer
     region.zones.sample
   end
 
-  def delete_instance(zone, name)
+  def delete_instance(name, zone)
     # Zone is passed in as a url, needs to be a string
     begin
       $log.info "Deleting instance #{name} from #{zone}"
@@ -259,6 +261,7 @@ unless ENV['UNIT_TESTS'] == 'true'
   start_time = Time.now
   errors = 0
 
+  $log.info "Starting the instance checker main loop"
   loop do
     begin
       $checker.check_pools!
