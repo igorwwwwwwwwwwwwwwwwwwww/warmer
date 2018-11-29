@@ -38,10 +38,12 @@ class Warmer
   end
 
   def pools
+    # Returns a hash containing all the pool configs from redis.
+    # Hash contains a bunch of Arrays of form [pool_name, target_size]
     @start_time ||= Time.now
     if Time.now - @start_time > 60 or @pools.nil?
       $log.info "Refreshing pool configs from redis"
-      @pools = redis.smembers('warmerpools').map { |pool| JSON.parse(pool) }
+      @pools = redis.hgetall('poolconfigs')
       @start_time = Time.now
     end
     @pools

@@ -33,10 +33,10 @@ class InstanceChecker < Warmer
 
     $log.info "starting check of #{pools.size} warmed pools..."
     pools.each do |pool|
-      $log.info "checking size of pool #{pool}"
-      current_size = redis.llen(pool['group_name'])
-      $log.info "current size is #{current_size}, should be #{pool['target_size']}"
-      if current_size < pool['target_size']
+      $log.info "checking size of pool #{pool[0]}"
+      current_size = redis.llen(pool[0])
+      $log.info "current size is #{current_size}, should be #{pool[1].to_i}"
+      if current_size < pool[1].to_i
         increase_size(pool)
       end
     end
@@ -59,12 +59,12 @@ class InstanceChecker < Warmer
   private
 
   def increase_size(pool)
-    size_difference = pool['target_size'] - redis.llen(pool['group_name'])
-    $log.info "increasing size of pool #{pool['group_name']} by #{size_difference}"
+    size_difference = pool[1].to_i - redis.llen(pool[0])
+    $log.info "increasing size of pool #{pool[0]} by #{size_difference}"
     size_difference.times do
       zone = random_zone
       new_instance_info = create_instance(pool, zone)
-      redis.rpush(pool['group_name'], JSON.dump(new_instance_info))
+      redis.rpush(pool[0], JSON.dump(new_instance_info))
     end
   end
 
@@ -77,7 +77,7 @@ class InstanceChecker < Warmer
     machine_type = compute.get_machine_type(
       ENV['GOOGLE_CLOUD_PROJECT'],
       File.basename(zone),
-      pool['machine_type']
+      pool[0].split(':')[1]
     )
 
     network = compute.get_network(
@@ -93,7 +93,7 @@ class InstanceChecker < Warmer
 
     tags = ['testing', 'org', 'warmer']
     access_configs = []
-    if pool['public_ip']
+    if /\S+:public/.match(pool[0])
       access_configs << Google::Apis::ComputeV1::AccessConfig.new(
         name: 'AccessConfig brought to you by warmer',
         type: 'ONE_TO_ONE_NAT'
@@ -131,7 +131,7 @@ class InstanceChecker < Warmer
         auto_delete: true,
         boot: true,
         initialize_params: Google::Apis::ComputeV1::AttachedDiskInitializeParams.new(
-          source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool['image_name']}"
+          source_image: "https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/#{pool[0].split(':').first}"
         )
       )],
       network_interfaces: [
@@ -191,7 +191,7 @@ class InstanceChecker < Warmer
         return new_instance_info
       rescue Google::Apis::ClientError => e
         # This should probably never happen, unless our url parsing went SUPER wonky
-        $log.error "error creating new instance in group #{pool['group_name']}: #{e}"
+        $log.error "error creating new instance in pool #{pool[0]}: #{e}"
         raise Exception.new("Google::Apis::ClientError creating instance: #{e}")
       end
 
@@ -227,7 +227,7 @@ class InstanceChecker < Warmer
   def get_num_redis_instances
     total = 0
     pools.each do |pool|
-      total += redis.llen(pool['group_name'])
+      total += redis.llen(pool[0])
     end
     total
   end
