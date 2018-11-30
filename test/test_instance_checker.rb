@@ -68,12 +68,12 @@ class InstanceCheckerTest < Test::Unit::TestCase
     pools = instance_checker.pools
     old_size = pools.size
 
-    instance_checker.redis.hset('poolconfigs', "foo", 1)
+    instance_checker.redis.hset('poolconfigs', "foobar", 1)
     sleep 70
     pools = instance_checker.pools
     assert_equal(old_size + 1, pools.size)
 
-    instance_checker.redis.hdel('poolconfigs', "foo")
+    instance_checker.redis.hdel('poolconfigs', "foobar")
   end
 
   def clean_up_test_instances

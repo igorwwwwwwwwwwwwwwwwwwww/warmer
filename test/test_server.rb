@@ -18,7 +18,7 @@ class ServerTest < Test::Unit::TestCase
   def setup
     @request_body = JSON.parse("{\"image_name\": \"https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/super-great-fake-image\",
       \"machine_type\": \"n1-standard-1\",
-      \"public_ip\": \"123.45.67.89\"}")
+      \"public_ip\": \"true\"}")
 
     @instance = "{\"name\": \"super-great-test-instance\", \"zone\": \"us-central1-c\"}"
     @bad_instance = "{\"name\": \"im-not-real\", \"zone\": \"us-central1-c\"}"

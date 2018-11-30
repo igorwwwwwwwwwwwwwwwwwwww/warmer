@@ -33,7 +33,7 @@ class Matcher < Warmer
     #   travis-ci-garnet-trusty-1503417006
     request_image_name = request_body['image_name']&.split('/').last
     request_machine_type = request_body['machine_type']&.split('/').last
-    request_public_ip = request_body['public_ip'] || nil, # map false => nil
+    request_public_ip = request_body['public_ip'] == "true" || false
 
     pool_name = "#{request_image_name}:#{request_machine_type}"
     pool_name += ":public" if request_public_ip
