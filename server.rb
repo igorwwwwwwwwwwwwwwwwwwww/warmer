@@ -38,6 +38,8 @@ class Matcher < Warmer
     pool_name = "#{request_image_name}:#{request_machine_type}"
     pool_name += ":public" if request_public_ip
 
+    $log.info "looking for pool named #{pool_name} in config based on request #{request_body}"
+
     if pools.has_key? pool_name
       return pool_name
     else
