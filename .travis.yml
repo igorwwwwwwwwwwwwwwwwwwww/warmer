@@ -2,7 +2,8 @@ language: ruby
 services:
   - redis-server
 before_script:
-  - redis-cli DEL warmerpools
-  - redis-cli SADD warmerpools "$TESTPOOLS"
+  - redis-cli DEL poolconfigs
+  - redis-cli HSET poolconfigs travis-ci-amethyst-trusty-1512508224-986baf0:n1-standard-1:public 1
+  - redis-cli HSET poolconfigs travis-ci-amethyst-trusty-1512508224-986baf0:n1-standard-1 1
 script:
   - bundle exec rake
