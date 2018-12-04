@@ -64,7 +64,7 @@ class InstanceChecker < Warmer
     size_difference.times do
       zone = random_zone
       new_instance_info = create_instance(pool, zone)
-      redis.rpush(pool[0], JSON.dump(new_instance_info))
+      redis.rpush(pool[0], JSON.dump(new_instance_info)) unless new_instance_info.nil?
     end
   end
 
