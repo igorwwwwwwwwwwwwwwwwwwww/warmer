@@ -6,6 +6,7 @@ require 'redis'
 require 'securerandom'
 require 'sinatra'
 require 'yaml'
+require 'libhoney'
 require_relative 'warmer'
 
 # https://www.rubydoc.info/github/google/google-api-ruby-client/Google/Apis/ComputeV1/ComputeService
@@ -31,13 +32,7 @@ class Matcher < Warmer
     #   https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/travis-ci-garnet-trusty-1503417006
     # to simply
     #   travis-ci-garnet-trusty-1503417006
-    request_image_name = request_body['image_name']&.split('/').last
-    request_machine_type = request_body['machine_type']&.split('/').last
-    request_public_ip = request_body['public_ip'] == "true" || false
-
-    pool_name = "#{request_image_name}:#{request_machine_type}"
-    pool_name += ":public" if request_public_ip
-
+    pool_name = generate_pool_name(request_body)
     $log.info "looking for pool named #{pool_name} in config based on request #{request_body}"
 
     if pools.has_key? pool_name
@@ -45,6 +40,17 @@ class Matcher < Warmer
     else
       return nil
     end
+  end
+
+  def generate_pool_name(request_body)
+    request_image_name = request_body['image_name']&.split('/').last
+    request_machine_type = request_body['machine_type']&.split('/').last
+    request_public_ip = request_body['public_ip'] == "true" || false
+
+    pool_name = "#{request_image_name}:#{request_machine_type}"
+    pool_name += ":public" if request_public_ip
+
+    pool_name
   end
 
   def request_instance(pool_name)
@@ -127,15 +133,24 @@ if ENV['AUTH_TOKEN']
   end
 end
 
+libhoney = Libhoney::Client.new(:writekey => ENV['HONEYCOMB_KEY'],
+                                :dataset => "warmer")
+
 post '/request-instance' do
   begin
     payload = JSON.parse(request.body.read)
+    ev = libhoney.event
 
     pool_name = $matcher.match(payload)
     unless pool_name
       $log.error "no matching pool found for request #{payload}"
       content_type :json
       status 404
+      ev.add({
+        "status": 404,
+        "requested_pool_name": $matcher.generate_pool_name(payload)
+      })
+      ev.send
       return {
         error: 'no config found for pool'
       }.to_json
@@ -147,6 +162,11 @@ post '/request-instance' do
       $log.error "no instances available in pool #{pool_name}"
       content_type :json
       status 409 # Conflict
+      ev.add({
+        "status": 409,
+        "requested_pool_name": pool_name
+      })
+      ev.send
       return {
         error: 'no instance available in pool'
       }.to_json
@@ -155,6 +175,11 @@ post '/request-instance' do
     $log.error e.message
     $log.error e.backtrace
     status 500
+    ev.add({
+      "status": 500,
+      "error": e.message
+    })
+    ev.send
     return {
       error: e.message
     }.to_json
@@ -162,6 +187,11 @@ post '/request-instance' do
 
   instance_data = JSON.parse(instance)
   $log.info "returning instance #{instance_data['name']}, formerly in pool #{pool_name}"
+  ev.add({
+    "status": 200,
+    "requested_pool_name": pool_name
+  })
+  ev.send
   content_type :json
   {
     name:      instance_data['name'],
@@ -186,7 +216,7 @@ get '/pool-configs/?:pool_name?' do
 end
 
 post '/pool-configs/:pool_name/:target_size' do
-  puts "updating config for pool #{params[:pool_name]}"
+  $log.info "updating config for pool #{params[:pool_name]}"
   # Pool name must be at least image-name:machine-type, target_size must be int
   if params[:pool_name].split(':').size < 2
     status 400
@@ -223,5 +253,13 @@ delete '/pool-configs/:pool_name' do
 end
 
 get '/' do
+  ev = libhoney.event
+  ev.add({
+    "status": 200,
+    "env": "TEST"
+  })
+  ev.send
   return "warmer no warming"
 end
+
+libhoney.close(true)
