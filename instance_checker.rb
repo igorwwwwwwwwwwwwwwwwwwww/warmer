@@ -119,6 +119,7 @@ class InstanceChecker < Warmer
     new_instance = Google::Apis::ComputeV1::Instance.new(
       name: "travis-job-#{SecureRandom.uuid}",
       machine_type: machine_type.self_link,
+      can_ip_forward: true,
       tags: Google::Apis::ComputeV1::Tags.new({
         items: tags,
       }),
