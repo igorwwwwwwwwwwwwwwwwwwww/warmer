@@ -1,4 +1,6 @@
 language: ruby
+dist: xenial
+group: edge
 services:
 - redis-server
 env:
