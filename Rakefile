@@ -1,9 +1,11 @@
-task default: %i[test]
+require 'rake/testtask'
 
-desc 'test the tests'
-task test: :prepare_test_env do
-  ruby "test/test_server.rb"
-  ruby "test/test_instance_checker.rb"
+task default: %i[prepare_test_env test]
+
+Rake::TestTask.new do |t|
+  t.warning = false
+  t.verbose = true
+  t.test_files = FileList['test/**/test_*.rb']
 end
 
 desc 'prepare the test environment'

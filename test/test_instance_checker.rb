@@ -57,7 +57,6 @@ class InstanceCheckerTest < Minitest::Test
   # TODO test mocking out timeouts/errors from GCP
 
   def test_pool_refresh
-    instance_checker = Warmer::InstanceChecker.new
     pools = Warmer.pools
     old_size = pools.size
 
