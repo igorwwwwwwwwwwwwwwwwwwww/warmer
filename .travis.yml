@@ -1,9 +1,8 @@
 language: ruby
 services:
-  - redis-server
-before_script:
-  - redis-cli DEL poolconfigs
-  - redis-cli HSET poolconfigs travis-ci-amethyst-trusty-1512508224-986baf0:n1-standard-1:public 1
-  - redis-cli HSET poolconfigs travis-ci-amethyst-trusty-1512508224-986baf0:n1-standard-1 1
+- redis-server
+env:
+  global:
+  - RACK_ENV=test
 script:
-  - bundle exec rake
+- bundle exec rake

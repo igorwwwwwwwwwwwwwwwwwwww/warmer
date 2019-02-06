@@ -1,18 +1,21 @@
-require 'test/unit'
+require 'simplecov'
+
 require 'json'
-require 'mocha/test_unit'
+
 require 'rack/test'
-require_relative '../server'
+require 'minitest/autorun'
+require 'mocha/minitest'
 
-class Matcher
-  public :get_instance_object, :label_instance
-end
+libdir = File.expand_path('../lib', __dir__)
+$LOAD_PATH.unshift(libdir) unless $LOAD_PATH.include?(libdir)
 
-class ServerTest < Test::Unit::TestCase
+require 'warmer'
+
+class ServerTest < Minitest::Test
   include Rack::Test::Methods
 
   def app
-    Sinatra::Application
+    Warmer::App
   end
 
   def setup
@@ -58,12 +61,12 @@ class ServerTest < Test::Unit::TestCase
   end
 
   def test_match
-    matcher = Matcher.new
+    matcher = Warmer::Matcher.new
     assert(true, matcher.match(@request_body))
   end
 
   def test_request_instance_empty_redis
-    matcher = Matcher.new
+    matcher = Warmer::Matcher.new
     instance = matcher.request_instance('fake_group')
     assert_equal(nil, instance)
   end
@@ -71,10 +74,10 @@ class ServerTest < Test::Unit::TestCase
   def test_request_instance
     fake_redis = mock()
     fake_redis.stubs(:lpop).returns("cool_instance")
-    matcher = Matcher.new
+    matcher = Warmer::Matcher.new
     matcher.stubs(:get_instance_object).returns(true)
     matcher.stubs(:label_instance).returns(true)
-    matcher.redis = fake_redis
+    Warmer.stubs(:redis).returns(fake_redis)
 
     instance = matcher.request_instance('fake_group')
     assert_equal("cool_instance", instance)
@@ -84,19 +87,18 @@ class ServerTest < Test::Unit::TestCase
   def test_request_instance_doesnt_exist
     fake_redis = mock()
     fake_redis.stubs(:lpop).returns("cool_instance", "better_instance")
-    matcher = Matcher.new
+    matcher = Warmer::Matcher.new
     matcher.stubs(:get_instance_object).returns(nil, true)
     matcher.stubs(:label_instance).returns(true)
-    matcher.redis = fake_redis
+    Warmer.stubs(:redis).returns(fake_redis)
 
     instance = matcher.request_instance('fake_group')
     assert_equal("better_instance", instance)
   end
 
   def test_get_instance_object_doesnt_exist
-    matcher = Matcher.new
-    obj = matcher.get_instance_object(@bad_instance)
+    matcher = Warmer::Matcher.new
+    obj = matcher.send(:get_instance_object, @bad_instance)
     assert_nil(obj)
   end
-
 end

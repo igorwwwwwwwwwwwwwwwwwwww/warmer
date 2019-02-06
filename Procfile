@@ -1,2 +1,2 @@
-web: bundle exec ruby server.rb
-checker: bundle exec ruby instance_checker.rb
+web: bin/travis-warmer-server
+checker: bin/travis-warmer-instance-checker
