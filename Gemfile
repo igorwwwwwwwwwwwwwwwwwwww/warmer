@@ -4,6 +4,7 @@ source 'https://rubygems.org'
 
 ruby File.read('.ruby-version').strip if ENV.key?('DYNO')
 
+gem 'codecov', group: :test, require: false
 gem 'fakeredis', group: :test
 gem 'google-api-client', '~> 0.11'
 gem 'libhoney'
