@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'google/apis/compute_v1'
 require 'json'
 require 'logger'
@@ -23,21 +25,17 @@ module Warmer
       pool_name = generate_pool_name(request_body)
       log.info "looking for pool named #{pool_name} in config based on request #{request_body}"
 
-      if has_pool?(pool_name)
-        return pool_name
-      else
-        return nil
-      end
+      return pool_name if has_pool?(pool_name)
+
+      nil
     end
 
     def generate_pool_name(request_body)
       request_image_name = request_body['image_name']&.split('/').last
       request_machine_type = request_body['machine_type']&.split('/').last
-      request_public_ip = request_body['public_ip'] == "true" || false
 
       pool_name = "#{request_image_name}:#{request_machine_type}"
-      pool_name += ":public" if request_public_ip
-
+      pool_name += ':public' if request_body['public_ip'] == 'true'
       pool_name
     end
 
@@ -51,25 +49,21 @@ module Warmer
         # This takes care of the "deleting from redis" cleanup that used to happen in
         # the instance checker.
       else
-        label_instance(instance_object, {'warmth': 'cooled'})
+        label_instance(instance_object, 'warmth': 'cooled')
         instance
       end
     end
 
-    def get_config(pool_name=nil)
+    def get_config(pool_name = nil)
       if pool_name.nil?
         Warmer.pools
       else
-        if has_pool?(pool_name)
-          { pool_name => Warmer.pools[pool_name] }
-        else
-          nil
-        end
+        { pool_name => Warmer.pools[pool_name] } if has_pool?(pool_name)
       end
     end
 
     def has_pool?(pool_name)
-      Warmer.pools.has_key?(pool_name)
+      Warmer.pools.key?(pool_name)
     end
 
     def set_config(pool_name, target_size)
@@ -81,20 +75,19 @@ module Warmer
     end
 
     private def get_instance_object(instance)
-      begin
-        name = JSON.parse(instance)['name']
-        zone = JSON.parse(instance)['zone']
-        instance_object = Warmer.compute.get_instance(
-          ENV['GOOGLE_CLOUD_PROJECT'],
-          File.basename(zone),
-          name)
-        instance_object
-      rescue StandardError => e
-        nil
-      end
+      name = JSON.parse(instance)['name']
+      zone = JSON.parse(instance)['zone']
+      instance_object = Warmer.compute.get_instance(
+        ENV['GOOGLE_CLOUD_PROJECT'],
+        File.basename(zone),
+        name
+      )
+      instance_object
+    rescue StandardError => e
+      nil
     end
 
-    private def label_instance(instance_object, labels={})
+    private def label_instance(instance_object, labels = {})
       label_request = Google::Apis::ComputeV1::InstancesSetLabelsRequest.new
       label_request.label_fingerprint = instance_object.label_fingerprint
       label_request.labels = labels

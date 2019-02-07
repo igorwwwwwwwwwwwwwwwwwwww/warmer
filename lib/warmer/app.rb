@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'json'
 require 'logger'
 require 'securerandom'
@@ -14,7 +16,7 @@ module Warmer
     configure(:staging, :production) do
       auth_token = ENV.fetch('AUTH_TOKEN')
 
-      use Rack::Auth::Basic, 'Protected Area' do |username, password|
+      use Rack::Auth::Basic, 'Protected Area' do |_username, password|
         Rack::Utils.secure_compare(password, auth_token)
       end
 
@@ -31,10 +33,10 @@ module Warmer
           log.error "no matching pool found for request #{payload}"
           content_type :json
           status 404
-          ev.add({
+          ev.add(
             "status": 404,
             "requested_pool_name": matcher.generate_pool_name(payload)
-          })
+          )
           ev.send
           return {
             error: 'no config found for pool'
@@ -47,10 +49,10 @@ module Warmer
           log.error "no instances available in pool #{pool_name}"
           content_type :json
           status 409 # Conflict
-          ev.add({
+          ev.add(
             "status": 409,
             "requested_pool_name": pool_name
-          })
+          )
           ev.send
           return {
             error: 'no instance available in pool'
@@ -60,10 +62,10 @@ module Warmer
         log.error e.message
         log.error e.backtrace
         status 500
-        ev.add({
+        ev.add(
           "status": 500,
           "error": e.message
-        })
+        )
         ev.send
         return {
           error: e.message
@@ -72,21 +74,20 @@ module Warmer
 
       instance_data = JSON.parse(instance)
       log.info "returning instance #{instance_data['name']}, formerly in pool #{pool_name}"
-      ev.add({
+      ev.add(
         "status": 200,
         "requested_pool_name": pool_name
-      })
+      )
       ev.send
       content_type :json
       {
-        name:      instance_data['name'],
-        zone:      instance_data['zone'].split('/').last,
-        ip:        instance_data['ip'],
+        name: instance_data['name'],
+        zone: instance_data['zone'].split('/').last,
+        ip: instance_data['ip'],
         public_ip: instance_data['public_ip'],
-        ssh_private_key: instance_data['ssh_private_key'],
+        ssh_private_key: instance_data['ssh_private_key']
       }.to_json
     end
-
 
     get '/pool-configs/?:pool_name?' do
       pool_config_json = matcher.get_config(params[:pool_name])
@@ -106,13 +107,17 @@ module Warmer
       if params[:pool_name].split(':').size < 2
         status 400
         return {
-          error: "Pool name must be of format image_name:machine_type(:public_ip)"
+          error: 'Pool name must be of format image_name:machine_type(:public_ip)'
         }.to_json
       end
-      if not pool_size = Integer(params[:target_size]) rescue false
+      unless pool_size = begin
+                           Integer(params[:target_size])
+                         rescue StandardError
+                           false
+                         end
         status 400
         return {
-          error: "Target pool size must be an integer"
+          error: 'Target pool size must be an integer'
         }.to_json
       end
       begin
@@ -139,12 +144,12 @@ module Warmer
 
     get '/' do
       ev = libhoney.event
-      ev.add({
+      ev.add(
         "status": 200,
-        "env": "TEST"
-      })
+        "env": 'TEST'
+      )
       ev.send
-      return "warmer no warming"
+      return 'warmer no warming'
     end
 
     private def libhoney

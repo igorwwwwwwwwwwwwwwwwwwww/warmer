@@ -1,18 +1,21 @@
+# frozen_string_literal: true
+
+begin
+  require 'rubocop/rake_task'
+  require 'rspec/core/rake_task'
+rescue LoadError => e
+  warn e
+end
+
 require 'rake/testtask'
 
-task default: %i[prepare_test_env test]
+RuboCop::RakeTask.new if defined?(RuboCop)
 
-Rake::TestTask.new do |t|
-  t.warning = false
-  t.verbose = true
-  t.test_files = FileList['test/**/test_*.rb']
-end
+RSpec::Core::RakeTask.new if defined?(RSpec)
 
 desc 'prepare the test environment'
 task :prepare_test_env do
-  unless %w[test development].include?(ENV['RACK_ENV'])
-    raise "invalid RACK_ENV #{ENV['RACK_ENV']}"
-  end
+  raise "invalid RACK_ENV #{ENV['RACK_ENV']}" unless %w[test development].include?(ENV['RACK_ENV'])
 
   require 'redis'
 
@@ -33,3 +36,5 @@ task :prepare_test_env do
     conn.hset('poolconfigs', "#{pool_image}:#{machine_type}", '1')
   end
 end
+
+task default: %i[rubocop spec]

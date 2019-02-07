@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'google/apis/compute_v1'
 require 'redis'
 
@@ -13,7 +15,7 @@ module Warmer
   module_function :authorize!
 
   def redis
-    @redis ||= Redis.new(:timeout => 1)
+    @redis ||= Redis.new(timeout: 1)
   end
 
   module_function :redis
