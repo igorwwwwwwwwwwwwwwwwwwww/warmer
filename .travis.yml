@@ -6,6 +6,7 @@ services:
 env:
   global:
   - RACK_ENV=test
+  - COVERAGE=1
 before_install:
 - gem install bundler
 script:
