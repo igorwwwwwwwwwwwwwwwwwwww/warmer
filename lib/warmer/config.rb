@@ -7,16 +7,12 @@ module Warmer
   class Config < Travis::Config
     extend Hashr::Env
 
-    def self.env
-      ENV['ENV'] || ENV['RACK_ENV'] || 'development'
-    end
-
-    def env
-      self.class.env
-    end
-
     def auth_tokens_array
       @auth_tokens_array ||= auth_tokens.split(/[ ,]/).map(&:strip)
+    end
+
+    def self.env_namespace
+      'warmer'
     end
 
     define(
@@ -34,8 +30,8 @@ module Warmer
         thread_id: true
       },
       redis_pool_options: {
-        size: 5,
-        timeout: 3
+        size: Integer(ENV.fetch('REDIS_POOL_OPTIONS_SIZE', '5')),
+        timeout: Integer(ENV.fetch('REDIS_POOL_OPTIONS_TIMEOUT', '3'))
       },
       redis_url: ENV.fetch(
         ENV.fetch('REDIS_PROVIDER', 'REDIS_URL'), 'redis://localhost:6379/0'

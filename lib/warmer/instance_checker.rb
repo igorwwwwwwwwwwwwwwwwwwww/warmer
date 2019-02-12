@@ -47,7 +47,7 @@ module Warmer
       log.info "starting check of #{Warmer.pools.size} warmed pools..."
       Warmer.pools.each do |pool|
         log.info "checking size of pool #{pool[0]}"
-        current_size = Warmer.redis.llen(pool[0])
+        current_size = Warmer.redis_pool.with { |r| r.llen(pool[0]) }
         log.info "current size is #{current_size}, should be #{pool[1].to_i}"
         increase_size(pool) if current_size < pool[1].to_i
       end
@@ -55,28 +55,32 @@ module Warmer
 
     def clean_up_orphans(queue = 'orphaned')
       log.info "cleaning up orphan queue #{queue}"
-      num_orphans = Warmer.redis.llen(queue)
+      num_orphans = Warmer.redis_pool.with { |r| r.llen(queue) }
       log.info "#{num_orphans} orphans to clean up..."
       num_orphans.times do
         # Using .times so that if orphans are being constantly added, this won't
         # be an infinite loop
-        orphan = JSON.parse(Warmer.redis.lpop(queue))
+        orphan = JSON.parse(Warmer.redis_pool.with { |r| r.lpop(queue) })
         log.info "deleting orphaned instance #{orphan['name']} from #{orphan['zone']}"
         delete_instance(orphan['name'], orphan['zone'])
       end
     end
 
     private def increase_size(pool)
-      size_difference = pool[1].to_i - Warmer.redis.llen(pool[0])
+      size_difference = pool[1].to_i - (Warmer.redis_pool.with { |r| r.llen(pool[0]) })
       log.info "increasing size of pool #{pool[0]} by #{size_difference}"
       size_difference.times do
-        zone = random_zone
+        zone = zones.sample
         new_instance_info = create_instance(pool, zone)
-        Warmer.redis.rpush(pool[0], JSON.dump(new_instance_info)) unless new_instance_info.nil?
+        next if new_instance_info.nil?
+
+        Warmer.redis_pool.with do |redis|
+          redis.rpush(pool[0], JSON.dump(new_instance_info))
+        end
       end
     end
 
-    private def create_instance(pool, zone, labels = { "warmth": 'warmed' })
+    private def create_instance(pool, zone, labels = { warmth: 'warmed' })
       if pool.nil?
         log.error 'Pool configuration malformed or missing, cannot create instance'
         return nil
@@ -205,7 +209,7 @@ module Warmer
           name: new_instance.name,
           zone: zone
         }
-        Warmer.redis.rpush('orphaned', JSON.dump(orphaned_instance_info))
+        Warmer.redis_pool.with { |r| r.rpush('orphaned', JSON.dump(orphaned_instance_info)) }
       end
 
       new_instance_info
@@ -232,35 +236,30 @@ module Warmer
     private def get_num_redis_instances
       total = 0
       Warmer.pools.each do |pool|
-        total += Warmer.redis.llen(pool[0])
+        total += (Warmer.redis_pool.with { |r| r.llen(pool[0]) })
       end
       total
     end
 
-    private def random_zone
-      region = Warmer.compute.get_region(
-        project,
-        region
-      )
-      region.zones.sample
-    end
-
     private def delete_instance(name, zone)
-      # Zone is passed in as a url, needs to be a string
-
+      zone = zone.to_s.split('/').last
       log.info "Deleting instance #{name} from #{zone}"
       Warmer.compute.delete_instance(
         project,
-        zone.split('/').last,
+        zone,
         name
       )
     rescue Exception => e
-      log.error "Error deleting instance #{name} from zone #{zone.split('/').last}"
+      log.error "Error deleting instance #{name} from zone #{zone}"
       log.error "#{e.message}: #{e.backtrace}"
     end
 
     private def log
       Warmer.logger
+    end
+
+    private def zones
+      @zones ||= Warmer.compute.get_region(project, region).zones
     end
 
     private def project
