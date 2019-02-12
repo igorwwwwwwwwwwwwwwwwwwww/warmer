@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 describe Warmer do
+  before :each do
+    Warmer.redis.hdel('poolconfigs', 'foobar')
+  end
+
   after :each do
     Warmer.redis.hdel('poolconfigs', 'foobar')
   end
