@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -o errexit
+
+main() {
+  local libdir
+  libdir="$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib"
+
+  set -o xtrace
+  exec bundle exec ruby -I"${libdir}" -rwarmer \
+    -e 'Warmer::InstanceChecker.new.run'
+}
+
+main "${@}"

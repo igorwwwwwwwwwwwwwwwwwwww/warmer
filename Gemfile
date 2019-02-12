@@ -1,13 +1,20 @@
+# frozen_string_literal: true
+
 source 'https://rubygems.org'
 
-ruby '2.5.1'
+ruby File.read('.ruby-version').strip if ENV.key?('DYNO')
 
-gem 'sinatra'
-gem 'redis'
+gem 'codecov', group: :test, require: false
+gem 'fakeredis', group: :test
 gem 'google-api-client', '~> 0.11'
-gem 'net-ssh'
-gem 'mocha'
-gem 'rake'
-gem 'test-unit'
-gem 'rack-test'
 gem 'libhoney'
+gem 'net-ssh'
+gem 'puma'
+gem 'rack-test', group: :test
+gem 'rake'
+gem 'redis'
+gem 'rspec', group: :test
+gem 'rubocop', group: %i[development test]
+gem 'simplecov', group: :test
+gem 'sinatra'
+gem 'test-unit', group: :test

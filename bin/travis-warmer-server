@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -o errexit
+
+main() {
+  pushd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" &>/dev/null
+
+  set -o xtrace
+  exec bundle exec puma
+}
+
+main "${@}"

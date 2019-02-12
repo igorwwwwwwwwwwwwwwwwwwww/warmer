@@ -1,5 +1,7 @@
 # warmer
 
+![warmer](https://user-images.githubusercontent.com/45143/52576764-c1e53080-2dee-11e9-8a72-638d895a885b.jpg)
+
 The warmer is a service that maintains pools of already running or pre-warmed
 VMs. This allows for customer jobs to start running sooner, since they will not
 have to wait for a new VM to boot from scratch.
