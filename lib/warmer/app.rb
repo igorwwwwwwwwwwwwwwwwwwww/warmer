@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'logger'
 require 'securerandom'
 require 'yaml'
 
 require 'google/apis/compute_v1'
-require 'libhoney'
 require 'net/ssh'
 require 'redis'
 require 'sinatra/base'
@@ -14,10 +12,10 @@ require 'sinatra/base'
 module Warmer
   class App < Sinatra::Base
     configure(:staging, :production) do
-      auth_token = ENV.fetch('AUTH_TOKEN')
-
-      use Rack::Auth::Basic, 'Protected Area' do |_username, password|
-        Rack::Utils.secure_compare(password, auth_token)
+      use Rack::Auth::Basic, 'Protected Area' do |_, password|
+        Warmer.config.auth_tokens_array.any? do |auth_token|
+          Rack::Utils.secure_compare(password, auth_token)
+        end
       end
 
       Warmer.authorize!
@@ -26,18 +24,12 @@ module Warmer
     post '/request-instance' do
       begin
         payload = JSON.parse(request.body.read)
-        ev = libhoney.event
 
         pool_name = matcher.match(payload)
         unless pool_name
           log.error "no matching pool found for request #{payload}"
           content_type :json
           status 404
-          ev.add(
-            "status": 404,
-            "requested_pool_name": matcher.generate_pool_name(payload)
-          )
-          ev.send
           return {
             error: 'no config found for pool'
           }.to_json
@@ -49,11 +41,6 @@ module Warmer
           log.error "no instances available in pool #{pool_name}"
           content_type :json
           status 409 # Conflict
-          ev.add(
-            "status": 409,
-            "requested_pool_name": pool_name
-          )
-          ev.send
           return {
             error: 'no instance available in pool'
           }.to_json
@@ -62,11 +49,6 @@ module Warmer
         log.error e.message
         log.error e.backtrace
         status 500
-        ev.add(
-          "status": 500,
-          "error": e.message
-        )
-        ev.send
         return {
           error: e.message
         }.to_json
@@ -74,11 +56,6 @@ module Warmer
 
       instance_data = JSON.parse(instance)
       log.info "returning instance #{instance_data['name']}, formerly in pool #{pool_name}"
-      ev.add(
-        "status": 200,
-        "requested_pool_name": pool_name
-      )
-      ev.send
       content_type :json
       {
         name: instance_data['name'],
@@ -136,24 +113,15 @@ module Warmer
     delete '/pool-configs/:pool_name' do
       if matcher.has_pool? params[:pool_name]
         matcher.delete_config(params[:pool_name])
-        status 200
+        status 204
       else
         status 404
       end
     end
 
     get '/' do
-      ev = libhoney.event
-      ev.add(
-        "status": 200,
-        "env": 'TEST'
-      )
-      ev.send
-      return 'warmer no warming'
-    end
-
-    private def libhoney
-      @libhoney ||= build_libhoney
+      content_type :text
+      "warmer no warming\n"
     end
 
     private def matcher
@@ -161,16 +129,7 @@ module Warmer
     end
 
     private def log
-      @log ||= Logger.new($stdout).tap do |l|
-        l.level = Logger::INFO
-      end
-    end
-
-    private def build_libhoney
-      Libhoney::Client.new(
-        writekey: ENV['HONEYCOMB_KEY'],
-        dataset: 'warmer'
-      )
+      Warmer.logger
     end
   end
 end

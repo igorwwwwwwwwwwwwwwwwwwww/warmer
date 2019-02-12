@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'fake_compute_service'
+require_relative '../fake_compute_service'
 
 describe Warmer::InstanceChecker do
   let :fake_compute do

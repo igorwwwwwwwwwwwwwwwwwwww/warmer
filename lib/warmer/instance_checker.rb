@@ -1,12 +1,9 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'logger'
-require 'set'
 
 require 'google/apis/compute_v1'
 require 'net/ssh'
-require 'redis'
 
 module Warmer
   class InstanceChecker
@@ -14,22 +11,19 @@ module Warmer
       start_time = Time.now
       errors = 0
 
-      error_interval = ENV['ERROR_INTERVAL']&.to_i || 60
-      max_error_count = ENV['MAX_ERROR_COUNT']&.to_i || 60
-
       log.info 'Starting the instance checker main loop'
       loop do
         check_pools!
-        sleep ENV['POOL_CHECK_INTERVAL'].to_i # Some amount of sleep to avoid race conditions
+        sleep Warmer.config.checker_pool_check_interval
       rescue StandardError => e
         log.error "#{e.message}: #{e.backtrace}"
-        if Time.now - start_time > error_interval
+        if Time.now - start_time > Warmer.config.checker_error_interval
           # enough time has passed since the last batch of errors, we should reset the counter
           errors = 0
           start_time = Time.now
         else
           errors += 1
-          break if errors >= max_error_count
+          break if errors >= Warmer.config.checker_max_error_count
         end
       end
 
@@ -45,7 +39,7 @@ module Warmer
       num_warmed_instances = get_num_warmed_instances
       num_redis_instances = get_num_redis_instances
 
-      if num_warmed_instances = num_redis_instances > ENV['ORPHAN_THRESHOLD'].to_i
+      if num_warmed_instances = num_redis_instances > Warmer.config.checker_orphan_threshold
         log.error 'too many orphaned VMs, not creating any more in case something is bork'
         return
       end
@@ -89,19 +83,19 @@ module Warmer
       end
 
       machine_type = Warmer.compute.get_machine_type(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         File.basename(zone),
         pool[0].split(':')[1]
       )
 
       network = Warmer.compute.get_network(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         'main'
       )
 
       subnetwork = Warmer.compute.get_subnetwork(
-        ENV['GOOGLE_CLOUD_PROJECT'],
-        ENV['GOOGLE_CLOUD_REGION'],
+        project,
+        region,
         'jobs-org'
       )
 
@@ -120,7 +114,7 @@ module Warmer
       ssh_public_key = ssh_key.public_key
       ssh_private_key = ssh_key.export(
         OpenSSL::Cipher::AES.new(256, :CBC),
-        ENV['SSH_KEY_PASSPHRASE']
+        ENV['SSH_KEY_PASSPHRASE'] || 'FIXME_WAT'
       )
 
       startup_script = <<~RUBYEOF
@@ -165,12 +159,11 @@ module Warmer
 
       log.info "inserting instance #{new_instance.name} into zone #{zone}"
       instance_operation = Warmer.compute.insert_instance(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         File.basename(zone),
         new_instance
       )
 
-      vm_creation_timeout = ENV['VM_CREATION_TIMEOUT']&.to_i || 90
       log.info "waiting for new instance #{instance_operation.name} operation to complete"
       begin
         slept = 0
@@ -178,16 +171,16 @@ module Warmer
           sleep 10
           slept += 10
           instance_operation = Warmer.compute.get_zone_operation(
-            ENV['GOOGLE_CLOUD_PROJECT'],
+            project,
             File.basename(zone),
             instance_operation.name
           )
-          raise Exception, 'Timeout waiting for new instance operation to complete' if slept > vm_creation_timeout
+          raise Exception, 'Timeout waiting for new instance operation to complete' if slept > Warmer.config.checker_vm_creation_timeout
         end
 
         begin
           instance = Warmer.compute.get_instance(
-            ENV['GOOGLE_CLOUD_PROJECT'],
+            project,
             File.basename(zone),
             new_instance.name
           )
@@ -220,15 +213,15 @@ module Warmer
 
     private def get_num_warmed_instances(filter = 'labels.warmth:warmed')
       total = 0
-      zones = [
-        "#{ENV['GOOGLE_CLOUD_REGION']}-a",
-        "#{ENV['GOOGLE_CLOUD_REGION']}-b",
-        "#{ENV['GOOGLE_CLOUD_REGION']}-c",
-        "#{ENV['GOOGLE_CLOUD_REGION']}-f"
-      ]
-      zones.each do |zone|
+      [
+        "#{region}-a",
+        "#{region}-b",
+        "#{region}-c",
+        "#{region}-f"
+      ].each do |zone|
         instances = Warmer.compute.list_instances(
-          ENV['GOOGLE_CLOUD_PROJECT'], zone,
+          project,
+          zone,
           filter: filter
         )
         total += instances.items.size unless instances.items.nil?
@@ -246,8 +239,8 @@ module Warmer
 
     private def random_zone
       region = Warmer.compute.get_region(
-        ENV['GOOGLE_CLOUD_PROJECT'],
-        ENV['GOOGLE_CLOUD_REGION']
+        project,
+        region
       )
       region.zones.sample
     end
@@ -257,7 +250,7 @@ module Warmer
 
       log.info "Deleting instance #{name} from #{zone}"
       Warmer.compute.delete_instance(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         zone.split('/').last,
         name
       )
@@ -267,9 +260,15 @@ module Warmer
     end
 
     private def log
-      @log ||= Logger.new($stdout).tap do |l|
-        l.level = Logger::INFO
-      end
+      Warmer.logger
+    end
+
+    private def project
+      Warmer.config.google_cloud_project
+    end
+
+    private def region
+      Warmer.config.google_cloud_region
     end
   end
 end
