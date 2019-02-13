@@ -12,11 +12,25 @@ require 'sinatra/base'
 module Warmer
   class App < Sinatra::Base
     configure(:staging, :production) do
+      require 'rack/ssl'
+      use Rack::SSL
+
+      if Warmer.config.honeycomb_enabled?
+        require 'honeycomb-beeline'
+        require 'rack/honeycomb'
+        use Rack::Honeycomb::Middleware, is_sinatra: true
+      end
+
       use Rack::Auth::Basic, 'Protected Area' do |_, password|
         Warmer.config.auth_tokens_array.any? do |auth_token|
           Rack::Utils.secure_compare(password, auth_token)
         end
       end
+
+      $stdout.sync = true
+      $stderr.sync = true
+      STDOUT.sync = true
+      STDERR.sync = true
 
       Warmer.authorize!
     end

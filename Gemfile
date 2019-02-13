@@ -8,11 +8,11 @@ gem 'codecov', group: :test, require: false
 gem 'connection_pool'
 gem 'fakeredis', group: :test, require: false
 gem 'google-api-client', '~> 0.11'
-gem 'honeycomb-beeline', require: false
+gem 'honeycomb-beeline', git: 'https://github.com/honeycombio/beeline-ruby.git'
 gem 'net-ssh'
 gem 'pry', require: false
 gem 'puma'
-gem 'rack-ssl', require: false
+gem 'rack-ssl'
 gem 'rack-test', group: :test
 gem 'rake'
 gem 'redis'
@@ -22,7 +22,5 @@ gem 'rubocop', group: %i[development test]
 gem 'simplecov', group: :test
 gem 'sinatra'
 gem 'sinatra-contrib'
-gem 'sinatra-param', require: 'sinatra/param'
-gem 'sshkey'
 gem 'travis-config'
 gem 'travis-logger', git: 'https://github.com/travis-ci/travis-logger.git'
