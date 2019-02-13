@@ -1,4 +1,4 @@
-.env
+*env
 *.swp
 dump.rdb
 coverage/

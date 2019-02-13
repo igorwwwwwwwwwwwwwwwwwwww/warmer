@@ -8,7 +8,7 @@ gem 'codecov', group: :test, require: false
 gem 'connection_pool'
 gem 'fakeredis', group: :test, require: false
 gem 'google-api-client', '~> 0.11'
-gem 'honeycomb-beeline'
+gem 'honeycomb-beeline', git: 'https://github.com/honeycombio/beeline-ruby.git'
 gem 'net-ssh'
 gem 'pry', require: false
 gem 'puma'
