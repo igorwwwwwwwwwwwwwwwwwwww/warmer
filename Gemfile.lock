@@ -7,6 +7,8 @@ GIT
 GEM
   remote: https://rubygems.org/
   specs:
+    activerecord-honeycomb (0.4.0)
+      libhoney
     addressable (2.6.0)
       public_suffix (>= 2.0.2, < 4.0)
     ast (2.4.0)
@@ -27,6 +29,8 @@ GEM
       redis (>= 3.2, < 5.0)
     faraday (0.15.4)
       multipart-post (>= 1.2, < 3)
+    faraday-honeycomb (0.3.1)
+      libhoney (>= 1.5.0)
     google-api-client (0.28.4)
       addressable (~> 2.5, >= 2.5.1)
       googleauth (>= 0.5, < 0.10.0)
@@ -43,6 +47,12 @@ GEM
       os (>= 0.9, < 2.0)
       signet (~> 0.7)
     hashr (2.0.1)
+    honeycomb-beeline (0.6.0)
+      activerecord-honeycomb (>= 0.4.0)
+      faraday-honeycomb (>= 0.3.0)
+      libhoney (>= 1.8.1)
+      rack-honeycomb (>= 0.4.0)
+      sequel-honeycomb (>= 0.4.0)
     http (3.3.0)
       addressable (~> 2.3)
       http-cookie (~> 1.0)
@@ -119,6 +129,8 @@ GEM
       ruby-progressbar (~> 1.7)
       unicode-display_width (~> 1.4.0)
     ruby-progressbar (1.10.0)
+    sequel-honeycomb (0.4.1)
+      libhoney
     signet (0.11.0)
       addressable (~> 2.3)
       faraday (~> 0.9)
@@ -159,10 +171,10 @@ DEPENDENCIES
   connection_pool
   fakeredis
   google-api-client (~> 0.11)
+  honeycomb-beeline
   net-ssh
   pry
   puma
-  rack-honeycomb
   rack-ssl
   rack-test
   rake
