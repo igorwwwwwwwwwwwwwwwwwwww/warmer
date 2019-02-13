@@ -5,7 +5,7 @@ main() {
   pushd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" &>/dev/null
 
   set -o xtrace
-  exec bundle exec puma
+  exec bundle exec puma -p "${PORT:-5000}"
 }
 
 main "${@}"
