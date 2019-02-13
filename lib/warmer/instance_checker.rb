@@ -8,6 +8,13 @@ require 'net/ssh'
 module Warmer
   class InstanceChecker
     def run
+      if ENV.key?('DYNO')
+        $stdout.sync = true
+        $stderr.sync = true
+        STDOUT.sync = true
+        STDERR.sync = true
+      end
+
       start_time = Time.now
       errors = 0
 
