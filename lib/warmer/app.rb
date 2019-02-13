@@ -15,9 +15,11 @@ module Warmer
       require 'rack/ssl'
       use Rack::SSL
 
-      require 'honeycomb-beeline'
-      require 'rack/honeycomb'
-      use Rack::Honeycomb::Middleware, is_sinatra: true
+      if Warmer.config.honeycomb_enabled?
+        require 'honeycomb-beeline'
+        require 'rack/honeycomb'
+        use Rack::Honeycomb::Middleware, is_sinatra: true
+      end
 
       use Rack::Auth::Basic, 'Protected Area' do |_, password|
         Warmer.config.auth_tokens_array.any? do |auth_token|

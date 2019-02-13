@@ -25,6 +25,7 @@ module Warmer
       google_cloud_keyfile_json: '',
       google_cloud_project: '',
       google_cloud_region: '',
+      honeycomb_enabled: false,
       logger: {
         format_type: 'l2met',
         thread_id: true
