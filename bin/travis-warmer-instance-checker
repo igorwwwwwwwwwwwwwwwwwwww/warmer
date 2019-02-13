@@ -6,7 +6,7 @@ main() {
   libdir="$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib"
 
   set -o xtrace
-  exec bundle exec ruby -I"${libdir}" -rwarmer \
+  exec bundle exec ruby -I"${libdir}" -rbundler/setup -rwarmer \
     -e 'Warmer::InstanceChecker.new.run'
 }
 
