@@ -12,6 +12,7 @@ gem 'honeycomb-beeline', require: false
 gem 'net-ssh'
 gem 'pry', require: false
 gem 'puma'
+gem 'rack-honeycomb', '~> 0.5.0'
 gem 'rack-ssl', require: false
 gem 'rack-test', group: :test
 gem 'rake'
@@ -22,7 +23,5 @@ gem 'rubocop', group: %i[development test]
 gem 'simplecov', group: :test
 gem 'sinatra'
 gem 'sinatra-contrib'
-gem 'sinatra-param', require: 'sinatra/param'
-gem 'sshkey'
 gem 'travis-config'
 gem 'travis-logger', git: 'https://github.com/travis-ci/travis-logger.git'

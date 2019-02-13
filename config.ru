@@ -17,6 +17,7 @@ unless %w[development test].include?(ENV['RACK_ENV'] || 'bogus')
   use Rack::SSL
 
   require 'honeycomb-beeline'
+  require 'rack/honeycomb/middleware'
   use Rack::Honeycomb::Middleware
 end
 
