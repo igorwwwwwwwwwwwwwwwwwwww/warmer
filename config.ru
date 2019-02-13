@@ -5,20 +5,4 @@ $LOAD_PATH.unshift(libdir) unless $LOAD_PATH.include?(libdir)
 
 require 'warmer'
 
-if ENV.key?('DYNO')
-  $stdout.sync = true
-  $stderr.sync = true
-  STDOUT.sync = true
-  STDERR.sync = true
-end
-
-unless %w[development test].include?(ENV['RACK_ENV'] || 'bogus')
-  require 'rack/ssl'
-  use Rack::SSL
-
-  require 'honeycomb-beeline'
-  require 'rack/honeycomb/middleware'
-  use Rack::Honeycomb::Middleware
-end
-
 run Warmer::App

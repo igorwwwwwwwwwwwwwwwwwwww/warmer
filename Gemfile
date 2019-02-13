@@ -8,12 +8,12 @@ gem 'codecov', group: :test, require: false
 gem 'connection_pool'
 gem 'fakeredis', group: :test, require: false
 gem 'google-api-client', '~> 0.11'
-gem 'honeycomb-beeline', require: false
+gem 'honeycomb-beeline'
 gem 'net-ssh'
 gem 'pry', require: false
 gem 'puma'
 gem 'rack-honeycomb', '~> 0.5.0'
-gem 'rack-ssl', require: false
+gem 'rack-ssl'
 gem 'rack-test', group: :test
 gem 'rake'
 gem 'redis'

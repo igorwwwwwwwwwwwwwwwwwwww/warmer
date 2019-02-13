@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'travis'
+
 require 'connection_pool'
 require 'google/apis/compute_v1'
 require 'redis-namespace'
