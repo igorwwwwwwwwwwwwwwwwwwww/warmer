@@ -17,7 +17,7 @@ module Warmer
 
       require 'honeycomb-beeline'
       require 'rack/honeycomb/middleware'
-      use Rack::Honeycomb::Middleware
+      use Rack::Honeycomb::Middleware, is_sinatra: true
 
       use Rack::Auth::Basic, 'Protected Area' do |_, password|
         Warmer.config.auth_tokens_array.any? do |auth_token|
