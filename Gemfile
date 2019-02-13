@@ -2,19 +2,27 @@
 
 source 'https://rubygems.org'
 
-ruby File.read('.ruby-version').strip if ENV.key?('DYNO')
+ruby File.read(File.expand_path('.ruby-version', __dir__)) if ENV.key?('DYNO')
 
 gem 'codecov', group: :test, require: false
-gem 'fakeredis', group: :test
+gem 'connection_pool'
+gem 'fakeredis', group: :test, require: false
 gem 'google-api-client', '~> 0.11'
-gem 'libhoney'
+gem 'honeycomb-beeline', require: false
 gem 'net-ssh'
+gem 'pry', require: false
 gem 'puma'
+gem 'rack-ssl', require: false
 gem 'rack-test', group: :test
 gem 'rake'
 gem 'redis'
+gem 'redis-namespace'
 gem 'rspec', group: :test
 gem 'rubocop', group: %i[development test]
 gem 'simplecov', group: :test
 gem 'sinatra'
-gem 'test-unit', group: :test
+gem 'sinatra-contrib'
+gem 'sinatra-param', require: 'sinatra/param'
+gem 'sshkey'
+gem 'travis-config'
+gem 'travis-logger', git: 'https://github.com/travis-ci/travis-logger.git'

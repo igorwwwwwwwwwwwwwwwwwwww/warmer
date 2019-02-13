@@ -2,12 +2,10 @@
 
 require 'google/apis/compute_v1'
 require 'json'
-require 'logger'
 require 'net/ssh'
 require 'securerandom'
 require 'sinatra'
 require 'yaml'
-require 'libhoney'
 
 require 'warmer'
 
@@ -78,7 +76,7 @@ module Warmer
       name = JSON.parse(instance)['name']
       zone = JSON.parse(instance)['zone']
       instance_object = Warmer.compute.get_instance(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         File.basename(zone),
         name
       )
@@ -93,7 +91,7 @@ module Warmer
       label_request.labels = labels
 
       Warmer.compute.set_instance_labels(
-        ENV['GOOGLE_CLOUD_PROJECT'],
+        project,
         instance_object.zone.split('/').last,
         instance_object.name,
         label_request
@@ -101,9 +99,11 @@ module Warmer
     end
 
     private def log
-      @log ||= Logger.new($stdout).tap do |l|
-        l.level = Logger::INFO
-      end
+      Warmer.logger
+    end
+
+    private def project
+      Warmer.config.google_cloud_project
     end
   end
 end

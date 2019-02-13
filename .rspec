@@ -1,3 +1,4 @@
 --color
 --order rand
 -r support
+-r pry

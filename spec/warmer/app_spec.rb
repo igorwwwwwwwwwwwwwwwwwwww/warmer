@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'fake_compute_service'
+require_relative '../fake_compute_service'
 
 describe Warmer::App do
   include Rack::Test::Methods
@@ -40,7 +40,7 @@ describe Warmer::App do
   describe 'GET /' do
     it 'can talk' do
       get '/'
-      expect(last_response.body).to eq('warmer no warming')
+      expect(last_response.body).to match(/^warmer no warming$/)
     end
   end
 
@@ -88,7 +88,7 @@ describe Warmer::App do
       expect(last_response).to be_ok
 
       delete '/pool-configs/super:testpool'
-      expect(last_response).to be_ok
+      expect(last_response.status).to eq(204)
 
       get '/pool-configs/super:testpool'
       expect(last_response.status).to eq(404)
