@@ -3,11 +3,13 @@
 require_relative 'travis'
 
 require 'connection_pool'
-require 'google/apis/compute_v1'
 require 'redis-namespace'
 require 'travis/logger'
 
+require 'warmer/error'
+
 module Warmer
+  autoload :Adapter, 'warmer/adapter'
   autoload :App, 'warmer/app'
   autoload :Config, 'warmer/config'
   autoload :Matcher, 'warmer/matcher'
@@ -36,7 +38,7 @@ module Warmer
   module_function :version
 
   def authorize!
-    authorizer.fetch_access_token!
+    adapter.authorize
   end
 
   module_function :authorize!
@@ -59,22 +61,12 @@ module Warmer
 
   module_function :redis_pool
 
-  def compute
-    @compute ||= Google::Apis::ComputeV1::ComputeService.new.tap do |compute|
-      compute.authorization = authorizer
-    end
+  def adapter
+    # TODO: which adapter should be determined by config
+    @adapter ||= Warmer::Adapter::Google.new(config)
   end
 
-  module_function :compute
-
-  def authorizer
-    @authorizer ||= Google::Auth::ServiceAccountCredentials.make_creds(
-      json_key_io: StringIO.new(config.google_cloud_keyfile_json),
-      scope: 'https://www.googleapis.com/auth/compute'
-    )
-  end
-
-  module_function :authorizer
+  module_function :adapter
 
   def pools
     # TODO: wrap this in some caching?

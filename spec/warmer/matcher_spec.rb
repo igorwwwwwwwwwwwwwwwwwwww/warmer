@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
+require_relative '../fake_compute_service'
+
 describe Warmer::Matcher do
-  subject(:matcher) { described_class.new }
+  subject(:matcher) { described_class.new(adapter) }
+  let(:adapter) { Warmer::Adapter::Google.new(Warmer.config, compute: fake_compute) }
+  let(:fake_compute) { FakeComputeService.new }
 
   let :request_body do
     {
@@ -33,33 +37,27 @@ describe Warmer::Matcher do
 
   context 'when a matching instance is found' do
     before do
-      allow(Warmer.redis).to receive(:lpop).and_return('cool_instance')
-      allow(matcher).to receive(:get_instance_object).and_return(true)
-      allow(matcher).to receive(:label_instance).and_return(true)
+      allow(Warmer.redis).to receive(:lpop).and_return('{"name":"cool_instance"}')
+      allow(adapter).to receive(:get_instance).and_return(true)
+      allow(adapter).to receive(:label_instance).and_return(true)
     end
 
     it 'returns the instance' do
-      expect(matcher.request_instance('fake_group')).to eq('cool_instance')
+      expect(matcher.request_instance('fake_group')).to eq('{"name":"cool_instance"}')
     end
   end
 
   context 'when no matching instance is found but there is a better one' do
     before do
       allow(Warmer.redis).to receive(:lpop).and_return(
-        'cool_instance', 'better_instance'
+        '{"name":"cool_instance"}', '{"name":"better_instance"}'
       )
-      allow(matcher).to receive(:get_instance_object).and_return(nil, true)
-      allow(matcher).to receive(:label_instance).and_return(true)
+      allow(adapter).to receive(:get_instance).and_return(nil, true)
+      allow(adapter).to receive(:label_instance).and_return(true)
     end
 
     it 'returns the better instance' do
-      expect(matcher.request_instance('fake_group')).to eq('better_instance')
-    end
-  end
-
-  context 'when instance object does not exist' do
-    it 'returns nil' do
-      expect(matcher.send(:get_instance_object, bad_instance)).to be_nil
+      expect(matcher.request_instance('fake_group')).to eq('{"name":"better_instance"}')
     end
   end
 end

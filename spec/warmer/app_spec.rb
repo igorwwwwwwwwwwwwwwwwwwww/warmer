@@ -11,6 +11,10 @@ describe Warmer::App do
     FakeComputeService.new
   end
 
+  let :adapter do
+    Warmer::Adapter::Google.new(Warmer.config, compute: fake_compute)
+  end
+
   let :request_body do
     {
       'image_name': 'https://www.googleapis.com/compute/v1/projects/eco-emissary-99515/global/images/super-great-fake-image',
@@ -34,7 +38,7 @@ describe Warmer::App do
   end
 
   before :each do
-    allow(Warmer).to receive(:compute).and_return(fake_compute)
+    allow(Warmer).to receive(:adapter).and_return(adapter)
   end
 
   describe 'GET /' do

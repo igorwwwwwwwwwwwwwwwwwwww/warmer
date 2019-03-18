@@ -4,7 +4,6 @@ require 'json'
 require 'securerandom'
 require 'yaml'
 
-require 'google/apis/compute_v1'
 require 'net/ssh'
 require 'redis'
 require 'sinatra/base'

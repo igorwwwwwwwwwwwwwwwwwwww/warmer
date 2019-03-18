@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'google/apis/compute_v1'
 require 'json'
 require 'net/ssh'
 require 'securerandom'
@@ -11,6 +10,10 @@ require 'warmer'
 
 module Warmer
   class Matcher
+    def initialize(adapter = Warmer.adapter)
+      @adapter = adapter
+    end
+
     def match(request_body)
       # Takes a request containing image name (as url), machine type (as url), and public_ip as boolean
       # and returns the pool name IN REDIS that matches it.
@@ -41,13 +44,14 @@ module Warmer
       instance = Warmer.redis.lpop(pool_name)
       return nil if instance.nil?
 
-      instance_object = get_instance_object(instance)
+      info = JSON.parse(instance)
+      instance_object = @adapter.get_instance(info)
       if instance_object.nil?
         request_instance(pool_name)
         # This takes care of the "deleting from redis" cleanup that used to happen in
         # the instance checker.
       else
-        label_instance(instance_object, 'warmth': 'cooled')
+        @adapter.label_instance(instance_object, 'warmth': 'cooled')
         instance
       end
     end
@@ -72,38 +76,8 @@ module Warmer
       Warmer.redis.hdel('poolconfigs', pool_name)
     end
 
-    private def get_instance_object(instance)
-      name = JSON.parse(instance)['name']
-      zone = JSON.parse(instance)['zone']
-      instance_object = Warmer.compute.get_instance(
-        project,
-        File.basename(zone),
-        name
-      )
-      instance_object
-    rescue StandardError => e
-      nil
-    end
-
-    private def label_instance(instance_object, labels = {})
-      label_request = Google::Apis::ComputeV1::InstancesSetLabelsRequest.new
-      label_request.label_fingerprint = instance_object.label_fingerprint
-      label_request.labels = labels
-
-      Warmer.compute.set_instance_labels(
-        project,
-        instance_object.zone.split('/').last,
-        instance_object.name,
-        label_request
-      )
-    end
-
     private def log
       Warmer.logger
-    end
-
-    private def project
-      Warmer.config.google_cloud_project
     end
   end
 end
