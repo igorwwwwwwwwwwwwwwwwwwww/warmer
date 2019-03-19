@@ -2,6 +2,7 @@
 
 require_relative '../fake_compute_service'
 
+# rubocop:disable Metrics/BlockLength
 describe Warmer::App do
   include Rack::Test::Methods
 
@@ -99,3 +100,4 @@ describe Warmer::App do
     end
   end
 end
+# rubocop:enable Metrics/BlockLength

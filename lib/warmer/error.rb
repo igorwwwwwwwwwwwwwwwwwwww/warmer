@@ -4,6 +4,8 @@ module Warmer
   class Error < StandardError
   end
 
+  # Thrown when an instance that is being created may have been orphaned in the process
+  # and would need to be cleaned up.
   class InstanceOrphaned < Error
     attr_reader :instance
 
