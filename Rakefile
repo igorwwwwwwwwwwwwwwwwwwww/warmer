@@ -38,3 +38,19 @@ task :prepare_test_env do
 end
 
 task default: %i[rubocop spec]
+
+VERSION = `git describe --always --dirty --tags 2>/dev/null`.strip
+
+namespace :docker do
+  task :login do
+    sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+  end
+
+  task :build do
+    sh "docker build -t travisci/warmer:#{VERSION} ."
+  end
+
+  task deploy: :login do
+    sh 'docker push travisci/warmer'
+  end
+end

@@ -12,3 +12,11 @@ before_install:
 - source example.env
 script:
 - bundle exec rake
+- bundle exec rake docker:build
+deploy:
+  provider: script
+  script: bundle exec rake docker:deploy
+  on:
+    # push all non-PR builds to Docker Hub
+    all_branches: true
+    condition: "$TRAVIS_PULL_REQUEST == false"
