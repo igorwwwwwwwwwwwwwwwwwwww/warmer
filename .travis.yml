@@ -1,4 +1,5 @@
 language: ruby
+ruby: 2.5
 dist: xenial
 group: edge
 services:
