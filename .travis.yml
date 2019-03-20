@@ -16,7 +16,7 @@ script:
 - bundle exec rake docker:build
 deploy:
   provider: script
-  script: bundle exec rake docker:deploy
+  script: rvm 2.5 --fuzzy do bundle exec rake docker:deploy
   on:
     # push all non-PR builds to Docker Hub
     all_branches: true
