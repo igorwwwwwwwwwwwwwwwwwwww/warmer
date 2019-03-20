@@ -17,6 +17,7 @@ script:
 deploy:
   provider: script
   script: rvm 2.5 --fuzzy do bundle exec rake docker:deploy
+  skip_cleanup: true
   on:
     # push all non-PR builds to Docker Hub
     all_branches: true
