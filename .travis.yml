@@ -8,6 +8,7 @@ env:
   - RACK_ENV=test
   - COVERAGE=1
 before_install:
+  - gem install rubygems-update -v 3.4.22
 - gem install bundler
 - source example.env
 script:
